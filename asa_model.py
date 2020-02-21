@@ -2,84 +2,55 @@
 import torch
 import torch.nn as nn
 import os, sys, json, codecs
-
+from utils import AdditiveAttention
 from pytorch_pretrained_bert.modeling import BertPreTrainedModel, BertModel
 
 class BertAsaMe(BertPreTrainedModel):
-    def __init__(self, config, char2word, pro_num, max_relative_position):
+    def __init__(self, config, tok2word_strategy, max_relative_position):
         super(BertZP, self).__init__(config)
-        assert type(pro_num) is int and pro_num > 1
-        self.pro_num = pro_num
-        self.char2word = char2word
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.resolution_classifier = SpanClassifier(config.hidden_size)
-        self.detection_classifier = nn.Linear(config.hidden_size, 2)
-        self.recovery_classifier = nn.Linear(config.hidden_size, pro_num)
+        self.tok2word_strategy = tok2word_stratery # first, last, mean, sum
+        hidden_size = config.hidden_size
+        self.mention_st_classifier = AdditiveAttention(hidden_size, hidden_size, 384)
+        self.mention_ed_classifier = AdditiveAttention(hidden_size, hidden_size, 384)
 
 
-    def forward(self, input_ids, mask, decision_mask, word_mask, input_char2word, input_char2word_mask,
-            detection_refs, resolution_refs, recovery_refs, batch_type):
-        char_repre, _ = self.bert(input_ids, None, mask, output_all_encoded_layers=False)
-        char_repre = self.dropout(char_repre) # [batch, seq, dim]
+    def forward(self, batch):
+        tok_repre, _ = self.bert(batch['input_ids'], None, batch['input_mask'], output_all_encoded_layers=False)
+        tok_repre = self.dropout(tok_repre) # [batch, seq, dim]
 
-        # cast from char-level to word-level
-        batch_size, seq_num, hidden_dim = list(char_repre.size())
-        _, wordseq_num, word_len = list(input_char2word.size())
-        if self.char2word in ('first', 'last', ):
+        # cast from tok-level to word-level
+        batch_size, seq_num, hidden_dim = list(tok_repre.size())
+        _, wordseq_num, word_len = list(batch['input_tok2word'].size())
+        if self.tok2word in ('first', 'last', ):
             assert word_len == 1
         offset = torch.arange(batch_size).view(batch_size, 1, 1).expand(-1, wordseq_num, word_len) * seq_num
         if torch.cuda.is_available():
             offset = offset.cuda()
-        positions = (input_char2word + offset).view(batch_size * wordseq_num * word_len)
-        word_repre = torch.index_select(char_repre.contiguous().view(batch_size * seq_num, hidden_dim), 0, positions)
+        positions = (batch['input_tok2word'] + offset).view(batch_size * wordseq_num * word_len)
+        word_repre = torch.index_select(tok_repre.contiguous().view(batch_size * seq_num, hidden_dim), 0, positions)
+        # [batch, wordseq, wordlen, dim]
         word_repre = word_repre.view(batch_size, wordseq_num, word_len, hidden_dim)
-        word_repre = word_repre * input_char2word_mask.unsqueeze(-1)
-        # word_repre: [batch, wordseq, dim]
-        word_repre = word_repre.mean(dim=2) if self.char2word == 'mean' else word_repre.sum(dim=2)
+        word_repre = word_repre * input_tok2word_mask.unsqueeze(-1)
+        # [batch, wordseq, dim]
+        word_repre = word_repre.mean(dim=2) if self.tok2word == 'mean' else word_repre.sum(dim=2)
 
-        #detection
-        detection_logits = self.detection_classifier(word_repre) # [batch, wordseq, 2]
-        detection_outputs = detection_logits.argmax(dim=-1) # [batch, wordseq]
-        detection_loss = torch.tensor(0.0)
-        if torch.cuda.is_available():
-            detection_loss = detection_loss.cuda()
-        if detection_refs is not None:
-            detection_loss = token_classification_loss(detection_logits, 2, detection_refs, decision_mask)
+        # make decision
+        senti_repre = (word_repre * batch['senti_mask'].unsqueeze(-1)).sum(dim=1) # [batch, dim]
+        _, st_dist = self.mention_st_classifier(senti_repre, word_repre, batch['input_content_mask']) # [batch, wordseq]
+        _, ed_dist = self.mention_ed_classifier(senti_repre, word_repre, batch['input_content_mask']) # [batch, wordseq]
+        predictions = torch.stack([st_dist.argmax(dim=-1), ed_dist.argmax(dim=-1)], dim=1) # [batch, 2]
 
-        #resolution
-        if batch_type == 'resolution':
-            resolution_start_dist, resolution_end_dist = self.resolution_classifier(word_repre, word_mask)
-            resolution_start_outputs = resolution_start_dist.argmax(dim=-1) # [batch, wordseq]
-            resolution_end_outputs = resolution_end_dist.argmax(dim=-1) # [batch, wordseq]
-            resolution_outputs = torch.stack([resolution_start_outputs, resolution_end_outputs], dim=-1) # [batch, wordseq, 2]
-            resolution_loss = torch.tensor(0.0)
-            if torch.cuda.is_available():
-                resolution_loss = resolution_loss.cuda()
-            if resolution_refs is not None: # [batch, wordseq, wordseq, 2]
-                resolution_start_positions, resolution_end_positions = resolution_refs.split(1, dim=-1)
-                resolution_start_positions = resolution_start_positions.squeeze(dim=-1) # [batch, wordseq, wordseq]
-                resolution_end_positions = resolution_end_positions.squeeze(dim=-1) # [batch, wordseq, wordseq]
-                resolution_loss = span_loss(resolution_start_dist, resolution_end_dist,
-                        resolution_start_positions, resolution_end_positions, decision_mask)
-            total_loss = detection_loss + resolution_loss
-            return {'total_loss': total_loss, 'detection_loss': detection_loss, 'resolution_loss': resolution_loss}, \
-                   {'detection_outputs': detection_outputs, 'resolution_outputs': resolution_outputs,
-                    'resolution_start_dist': resolution_start_dist, 'resolution_end_dist': resolution_end_dist}
+        # calculate loss
+        if batch['input_ref'] is not None:
+            st_ref, ed_ref = batch['input_ref'].split(1, dim=-1)
+            st_ref, ed_ref = st_ref.squeeze(dim=-1), ed_ref.squeeze(dim=-1) # [batch, wordseq]
+            tmp = (st_ref * st_dist.log() + ed_ref * ed_dist.log()) * batch['input_content_mask'] # [batch, wordseq]
+            loss = -1.0 * tmp.sum() / batch['input_content_mask'].sum()
+        else:
+            loss = torch.tensor(0.0).cuda() if torch.cuda.is_available() else torch.tensor(0.0)
 
-        #recovery
-        if batch_type == 'recovery':
-            recovery_logits = self.recovery_classifier(word_repre) # [batch, wordseq, pro_num]
-            recovery_outputs = recovery_logits.argmax(dim=-1) # [batch, wordseq]
-            recovery_loss = torch.tensor(0.0)
-            if torch.cuda.is_available():
-                recovery_loss = recovery_loss.cuda()
-            if recovery_refs is not None:
-                recovery_loss = token_classification_loss(recovery_logits, self.pro_num, recovery_refs, decision_mask)
-            total_loss = detection_loss + recovery_loss
-            return {'total_loss': total_loss, 'detection_loss': detection_loss, 'recovery_loss': recovery_loss}, \
-                   {'detection_outputs': detection_outputs, 'recovery_outputs': recovery_outputs}
-
-        assert False, "batch_type need to be either 'recovery' or 'resolution'"
+        return {'loss': loss, 'predictions': predictions}
 
 

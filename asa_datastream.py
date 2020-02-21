@@ -100,9 +100,9 @@ def extract_features_mention(data, tokenizer, tok2word):
             cur_ids, cur_tok2word = bert_tokenize(turn, tokenizer, tok2word) # [tok_seq], [word_seq, word_len]
             merge(all_ids, all_tok2word, cur_ids, cur_tok2word)
             all_offsets.append(len(all_tok2word))
-            s1, s2 = len(all_ids), len(all_tok2word)
+            len_token, len_word = len(all_ids), len(all_tok2word)
             for senti in dialogue['sentiment']:
-                assert s1 == len(all_ids) and s2 == len(all_tok2word)
+                assert len_token == len(all_ids) and len_word == len(all_tok2word)
                 if senti['turn_id'] == i:
                     has_mention = False
 
