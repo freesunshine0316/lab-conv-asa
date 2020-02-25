@@ -7,9 +7,24 @@ SENTI_STR_MAPPING = {1:'Pos', 0:'Neu', -1:'Neg'}
 TAG_MAPPING = {'O':0, 'PosB':1, 'PosI':2, 'NeuB':3, 'NeuI':4, 'NegB':5, 'NegI':6}
 TAG_MAPPING_SIMP = {'O':0, 'B':1, 'I':2}
 
+def is_tag_begin(tid):
+    return tid in (1,3,5,)
+
+def is_tag_inner(tid):
+    return tid in (2,4,6,)
+
+def check_tag_polarity(tid):
+    if tid in (1,2,):
+        return 1
+    elif tid in (3,4,):
+        return 0
+    elif tid in (5,6,):
+        return -1
+    assert False, 'illegal tid {}'.format(tid)
+
 CLS_ID, SEP_ID = tokenizer.convert_tokens_to_ids(['CLS', 'SEP'])
 
-def load_and_extract_features(path, tokenizer, tok2word, task):
+def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
     data = []
     conv, sentiment, mention = [], [], []
     for line in open(path, 'r'):
@@ -34,38 +49,41 @@ def load_and_extract_features(path, tokenizer, tok2word, task):
         conv.append(turn)
 
     if task == 'sentiment':
-        return extract_features_sentiment(data, tokenizer, tok2word)
+        return extract_features_sentiment(data, tokenizer, tok2word_strategy)
     elif task == 'mention':
-        return extract_features_mention(data, tokenizer, tok2word)
+        return extract_features_mention(data, tokenizer, tok2word_strategy)
     else:
         assert False, 'Unsupported task: ' + task
 
 
-def bert_tokenize(word_seq, tokenizer, tok2word):
+def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
     input_ids = [] # [tok number]
     input_tok2word = [] # [word number, word length]
+    total_offset = 0
     for word in word_seq:
         if word in ('A:', 'B:'):
             word = '<S>' if word == 'A:' else '<T>'
         toks = [x if x in tokenizer.vocab else '[UNK]' for x in tokenizer.tokenize(word)]
         idxs = tokenizer.convert_tokens_to_ids(toks)
         input_ids.extend(idxs)
-        if tok2word == 'first':
-            input_tok2word.append(idxs[:1])
-        elif tok2word == 'last':
-            input_tok2word.append(idxs[-1:])
-        elif tok2word in ('mean', 'sum', ):
-            input_tok2word.append(idxs)
+        positions = [i + total_offset for i in range(len(idxs))]
+        total_offset += len(idxs)
+        if tok2word_strategy == 'first':
+            input_tok2word.append(positions[:1])
+        elif tok2word_strategy == 'last':
+            input_tok2word.append(positions[-1:])
+        elif tok2word_strategy in ('mean', 'sum', ):
+            input_tok2word.append(positions)
         else:
-            assert False, 'Unsupported tok2word: ' + tok2word
+            assert False, 'Unsupported tok2word_strategy: ' + tok2word_strategy
     return input_ids, input_tok2word
 
 
-def extract_features_sentiment(data, tokenizer, tok2word):
+def extract_features_sentiment(data, tokenizer, tok2word_strategy):
     features = []
     for dialogue in data:
         for i, turn in enumerate(dialogue['conv']):
-            input_ids, input_tok2word = bert_tokenize(turn, tokenizer, tok2word) # [tok_seq], [word_seq, word_len]
+            input_ids, input_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
             for senti in dialogue['sentiment']:
                 if senti['turn_id'] == i:
                     input_tags = [TAG_MAPPING['O'] for _ in input_tok2word] # [word_seq]
@@ -90,14 +108,14 @@ def merge(a_ids, a_tok2word, b_ids, b_tok2word):
 
 
 # w_1^1, ..., w_1^{N_1}, ..., w_i^{N_i} [SEP] w_{s_j}^1, ..., w_{s_j}^{|s_j|} [CLS]
-def extract_features_mention(data, tokenizer, tok2word):
+def extract_features_mention(data, tokenizer, tok2word_strategy):
     features = []
     for dialogue in data:
         all_ids = []
         all_tok2word = []
         all_offsets = [0,]
         for i, turn in enumerate(dialogue['conv']):
-            cur_ids, cur_tok2word = bert_tokenize(turn, tokenizer, tok2word) # [tok_seq], [word_seq, word_len]
+            cur_ids, cur_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
             merge(all_ids, all_tok2word, cur_ids, cur_tok2word)
             all_offsets.append(len(all_tok2word))
             len_token, len_word = len(all_ids), len(all_tok2word)
@@ -116,12 +134,12 @@ def extract_features_mention(data, tokenizer, tok2word):
                     input_ref = []
 
                     # ADD w_{s_j}^1, ..., w_{s_j}^{|s_j|} [CLS]
-                    senti_st, senti_ed = senti['span']
-                    senti_ids, senti_tok2word = bert_tokenize(turn[senti_st:senti_ed], tokenizer, tok2word)
+                    senti_st, senti_ed = senti['span'] # [st, ed)
+                    senti_ids, senti_tok2word = bert_tokenize(turn[senti_st:senti_ed], tokenizer, tok2word_strategy)
                     merge(input_ids, input_tok2word, senti_ids, senti_tok2word)
                     input_senti_mask.extend([1.0 for _ in senti_tok2word])
                     input_ids += [CLS_ID,]
-                    input_tok2word += [[len(input_ids)-1,],]
+                    input_tok2word += [[len(input_ids)-1]]
                     input_senti_mask.append(0.0)
 
                     var = senti['var']
