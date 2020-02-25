@@ -21,43 +21,21 @@ FLAGS = None
 
 def dev_evaluate(model, evalset, device, log_file):
     print('Evaluating on dataset with data_type: {}'.format(data_type))
-    model.eval()
-    N = 0
-    loss = 0.0
     start = time.time()
+    if FLAGS.task == 'sentiment':
+        pass
+    else:
+        pass
     # output and calculate performance
     total_loss = dev_loss['total_loss']
     duration = time.time()-start
     print('Loss: %.2f, time: %.3f sec' % (total_loss, duration))
     log_file.write('Loss: %.2f, time: %.3f sec\n' % (total_loss, duration))
-    det_pr, det_rc, det_f1 = calc_f1(n_out=dev_counts['detection'][1],
-            n_ref=dev_counts['detection'][2], n_both=dev_counts['detection'][0])
-    #print('Detection F1: %.2f, Precision: %.2f, Recall: %.2f' % (100*det_f1, 100*det_pr, 100*det_rc))
-    log_file.write('Detection F1: %.2f, Precision: %.2f, Recall: %.2f\n' % (100*det_f1, 100*det_pr, 100*det_rc))
-    cur_result = {'data_type':data_type, 'loss':total_loss, 'detection_f1':det_f1}
-    if data_type == 'recovery':
-        rec_pr, rec_rc, rec_f1 = calc_f1(n_out=dev_counts['recovery'][1],
-                n_ref=dev_counts['recovery'][2], n_both=dev_counts['recovery'][0])
-        print('Recovery F1: %.2f, Precision: %.2f, Recall: %.2f' % (100*rec_f1, 100*rec_pr, 100*rec_rc))
-        log_file.write('Recovery F1: %.2f, Precision: %.2f, Recall: %.2f\n' % (100*rec_f1, 100*rec_pr, 100*rec_rc))
-        cur_result['key_f1'] = rec_f1
-    else:
-        res_pr, res_rc, res_f1 = calc_f1(n_out=dev_counts['resolution'][1],
-                n_ref=dev_counts['resolution'][2], n_both=dev_counts['resolution'][0])
-        print('Resolution F1: %.2f, Precision: %.2f, Recall: %.2f' % (100*res_f1, 100*res_pr, 100*res_rc))
-        log_file.write('Resolution F1: %.2f, Precision: %.2f, Recall: %.2f\n' % (100*res_f1, 100*res_pr, 100*res_rc))
-        cur_result['key_f1'] = res_f1
-        resnp_pr, resnp_rc, resnp_f1 = calc_f1(n_out=dev_counts['resolution_nps'][1],
-                n_ref=dev_counts['resolution_nps'][2], n_both=dev_counts['resolution_nps'][0])
-        print('Resolution NP F1: %.2f, Precision: %.2f, Recall: %.2f' % (100*resnp_f1, 100*resnp_pr, 100*resnp_rc))
-        log_file.write('Resolution NP F1: %.2f, Precision: %.2f, Recall: %.2f\n' % (100*resnp_f1, 100*resnp_pr, 100*resnp_rc))
-        cur_result['resolution_np_f1'] = resnp_f1
-    if len(development_sets) > 1:
-        print('+++++')
-        log_file.write('+++++\n')
+    print('Recovery F1: %.2f, Precision: %.2f, Recall: %.2f' % (100*rec_f1, 100*rec_pr, 100*rec_rc))
+    log_file.write('Recovery F1: %.2f, Precision: %.2f, Recall: %.2f\n' % (100*rec_f1, 100*rec_pr, 100*rec_rc))
+    cur_result['key_f1'] = rec_f1
     log_file.flush()
     evaluate_results.append(cur_result)
-    model.train()
     return dev_eval_results
 
 
