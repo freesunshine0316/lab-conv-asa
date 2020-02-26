@@ -4,7 +4,7 @@ import torch.nn as nn
 import os, sys, json, codecs
 from pytorch_pretrained_bert.modeling import BertPreTrainedModel, BertModel
 from nn_utils import AdditiveAttention
-from asa_data_streeam import TAG_MAPPING, TAG_MAPPING_SIMP
+from asa_datastream import TAG_MAPPING, TAG_MAPPING_SIMP
 
 
 class BertAsaSe(BertPreTrainedModel):
@@ -36,7 +36,7 @@ class BertAsaSe(BertPreTrainedModel):
         else:
             loss = torch.tensor(0.0).cuda() if torch.cuda.is_available() else torch.tensor(0.0)
 
-        return {'loss':loss', predictions':predictions, 'wordseq_lengths':batch['input_tok2word_mask'].sum(dim=1).long()}
+        return {'loss':loss, 'predictions':predictions, 'wordseq_lengths':batch['input_tok2word_mask'].sum(dim=1).long()}
 
 
 class BertAsaMe(BertPreTrainedModel):

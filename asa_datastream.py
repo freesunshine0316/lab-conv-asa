@@ -22,7 +22,6 @@ def check_tag_polarity(tid):
         return -1
     assert False, 'illegal tid {}'.format(tid)
 
-CLS_ID, SEP_ID = tokenizer.convert_tokens_to_ids(['CLS', 'SEP'])
 
 def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
     data = []
@@ -111,6 +110,7 @@ def merge(a_ids, a_tok2word, b_ids, b_tok2word):
 
 # w_1^1, ..., w_1^{N_1}, ..., w_i^{N_i} [SEP] w_{s_j}^1, ..., w_{s_j}^{|s_j|} [CLS]
 def extract_features_mention(data, tokenizer, tok2word_strategy):
+    CLS_ID, SEP_ID = tokenizer.convert_tokens_to_ids(['CLS', 'SEP'])
     features = []
     for dialogue in data:
         all_ids = []
@@ -169,7 +169,7 @@ def make_batch(features, task, batch_size, is_sort=True, is_shuffle=False):
         assert False, 'Unknown'
 
 
-def make_batch_unified(features, B, N)
+def make_batch_unified(features, B, N):
     maxseq, maxwordseq, maxwordlen = 0, 0, 0
     for i in range(0, B):
         maxseq = max(maxseq, len(features[N+i]['input_ids']))

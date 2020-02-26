@@ -67,17 +67,17 @@ def main():
 
     # load data and make_batches
     print('Loading data and making batches')
-    train_features = asa_datastream.load_and_extract_features(path, tokenizer,
+    train_features = asa_datastream.load_and_extract_features(FLAGS.train_path, tokenizer,
             FLAGS.tok2word_strategy, FLAGS.task)
     train_batches = asa_datastream.make_batch(features, FLAGS.task, FLAGS.batch_size,
             is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
 
-    dev_features = asa_datastream.load_and_extract_features(path, tokenizer,
+    dev_features = asa_datastream.load_and_extract_features(FLAGS.dev_path, tokenizer,
             FLAGS.tok2word_strategy, FLAGS.task)
     dev_batches = asa_datastream.make_batch(features, FLAGS.task, FLAGS.batch_size,
             is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
 
-    test_features = asa_datastream.load_and_extract_features(path, tokenizer,
+    test_features = asa_datastream.load_and_extract_features(FLAGS.test_path, tokenizer,
             FLAGS.tok2word_strategy, FLAGS.task)
     test_batches = asa_datastream.make_batch(features, FLAGS.task, FLAGS.batch_size,
             is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
@@ -147,7 +147,7 @@ def main():
         duration = time.time() - epoch_start
         print('\nTraining loss: %s, time: %.3f sec' % (str(epoch_loss), duration))
         log_file.write('\nTraining loss: %s, time: %.3f sec\n' % (str(epoch_loss), duration))
-        cur_score = dev_eval(model, dev_batches, log_file):
+        cur_score = dev_eval(model, dev_batches, log_file)
         if cur_score > best_score:
             print('Saving weights, score {} (prev_best) < {} (cur)'.format(best_score, cur_score))
             log_file.write('Saving weights, score {} (prev_best) < {} (cur)\n'.format(best_score, cur_score))
