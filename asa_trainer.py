@@ -14,29 +14,33 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 import asa_model
 import asa_datastream
+import asa_evaluator
 import config_utils
 
 FLAGS = None
 
-
-def dev_evaluate(model, evalset, device, log_file):
-    print('Evaluating on dataset with data_type: {}'.format(data_type))
+def dev_eval(model, batches, log_file):
+    print('Evaluating on devset')
     start = time.time()
     if FLAGS.task == 'sentiment':
-        pass
+        outputs = asa_evaluator.predict_sentiment(model, batches)
     else:
-        pass
-    # output and calculate performance
-    total_loss = dev_loss['total_loss']
-    duration = time.time()-start
-    print('Loss: %.2f, time: %.3f sec' % (total_loss, duration))
-    log_file.write('Loss: %.2f, time: %.3f sec\n' % (total_loss, duration))
-    print('Recovery F1: %.2f, Precision: %.2f, Recall: %.2f' % (100*rec_f1, 100*rec_pr, 100*rec_rc))
-    log_file.write('Recovery F1: %.2f, Precision: %.2f, Recall: %.2f\n' % (100*rec_f1, 100*rec_pr, 100*rec_rc))
-    cur_result['key_f1'] = rec_f1
-    log_file.flush()
-    evaluate_results.append(cur_result)
-    return dev_eval_results
+        outputs = asa_evaluator.predict_mention(model, batches)
+    duration = time.time() - start
+    print('Loss: %.2f, time: %.3f sec' % (outputs['loss'], duration))
+    log_file.write('Loss: %.2f, time: %.3f sec\n' % (outputs['loss'], duration))
+    if FLAGS.task == 'sentiment':
+        accu = outputs['score']
+        print('Accuracy: %.2f' % (100*accu))
+        log_file.write('Accuracy: %.2f\n' % (100*accu))
+        log_file.flush()
+        return accu
+    else:
+        p, r, f = outputs['score']
+        print('F1: %.2f, Precision: %.2f, Recall: %.2f' % (100*f, 100*p, 100*r))
+        log_file.write('F1: %.2f, Precision: %.2f, Recall: %.2f\n' % (100*f, 100*p, 100*r))
+        log_file.flush()
+        return f
 
 
 def main():
@@ -123,7 +127,7 @@ def main():
                     for k, v in ori_batch.items()}
 
             loss = model(batch)['loss']
-            train_loss += loss.item()
+            epoch_loss += loss.item()
 
             if n_gpu > 1:
                 loss = loss.mean()
@@ -141,19 +145,19 @@ def main():
                 optimizer.zero_grad()
 
         duration = time.time() - epoch_start
-        print('\nTraining loss: %s, time: %.3f sec' % (str(train_loss), duration))
-        log_file.write('\nTraining loss: %s, time: %.3f sec\n' % (str(train_loss), duration))
-        cur_f1 = dev_eval(model, dev_batches, device, log_file):
-        if cur_f1 > best_f1:
-            print('Saving weights, F1 {} (prev_best) < {} (cur)'.format(best_f1, cur_f1))
-            log_file.write('Saving weights, F1 {} (prev_best) < {} (cur)\n'.format(best_f1, cur_f1))
-            best_f1 = cur_f1
+        print('\nTraining loss: %s, time: %.3f sec' % (str(epoch_loss), duration))
+        log_file.write('\nTraining loss: %s, time: %.3f sec\n' % (str(epoch_loss), duration))
+        cur_score = dev_eval(model, dev_batches, log_file):
+        if cur_score > best_score:
+            print('Saving weights, score {} (prev_best) < {} (cur)'.format(best_score, cur_score))
+            log_file.write('Saving weights, score {} (prev_best) < {} (cur)\n'.format(best_score, cur_score))
+            best_score = cur_score
             save_model(model, path_prefix)
-            FLAGS.best_f1 = best_f1
+            FLAGS.best_score = best_score
             config_utils.save_config(FLAGS, path_prefix + ".config.json")
         print('-------------')
         log_file.write('-------------\n')
-        dev_eval(model, test_batches, device, log_file)
+        dev_eval(model, test_batches, log_file)
         print('=============')
         log_file.write('=============\n')
         if torch.cuda.is_available():

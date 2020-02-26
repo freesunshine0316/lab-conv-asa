@@ -84,15 +84,17 @@ def extract_features_sentiment(data, tokenizer, tok2word_strategy):
     for dialogue in data:
         for i, turn in enumerate(dialogue['conv']):
             input_ids, input_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
+            input_tags = [TAG_MAPPING['O'] for _ in input_tok2word] # [word_seq]
+            refs = set()
             for senti in dialogue['sentiment']:
                 if senti['turn_id'] == i:
-                    input_tags = [TAG_MAPPING['O'] for _ in input_tok2word] # [word_seq]
                     st, ed = senti['span']
+                    refs.add((st, ed))
                     senti_str = SENTI_STR_MAPPING[senti['senti']]
                     input_tags[st] = TAG_MAPPING[senti_str+'B']
                     for j in range(st+1, ed):
                         input_tags[j] = TAG_MAPPING[senti_str+'I']
-                features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_tags':input_tags})
+                features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_tags':input_tags, 'refs':refs})
     return features
 
 
@@ -149,6 +151,7 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
                             st, ed = mentn['span']
                             st, ed = st + all_offsets[mentn['turn_id']], ed + all_offsets[mentn['turn_id']]
                             input_ref.append((st,ed))
+                            refs.add((st, ed))
                     if has_mention:
                         features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_ref':input_ref,
                             'input_content_bound':input_content_bound})
@@ -213,6 +216,7 @@ def make_batch_sentiment(features, batch_size, is_sort=True, is_shuffle=False):
             curwordseq = len(features[N+i]['input_tok2word'])
             input_tags[i,:curwordseq] = features[N+i]['input_tags']
         batch['input_tags'] = torch.tensor(input_tags, dtype=torch.long)
+        batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
         batches.append(batch)
         N += B
     return batches
@@ -231,17 +235,17 @@ def make_batch_mention(features, batch_size, is_sort=True, is_shuffle=False):
         input_senti_mask = np.zeros([B, maxwordseq], dtype=np.float)
         input_content_mask = np.zeros([B, maxwordseq], dtype=np.float)
         input_ref = np.zeros([B, maxwordseq, 2], dtype=np.float)
-        input_ori_ref = [set() for i in range(0, B)]
+        refs = [set() for i in range(0, B)]
         for i in range(0, B):
             ref_num = len(features[N+i]['input_ref'])
             for st, ed in features[N+i]['input_ref']:
                 input_ref[i,st,0] = 1.0/ref_num
                 input_ref[i,ed,1] = 1.0/ref_num
-                input_ori_ref[i].add((st,ed))
+                refs[i].add((st,ed))
         batch['input_senti_mask'] = torch.tensor(input_senti_mask, dtype=torch.float)
         batch['input_content_mask'] = torch.tensor(input_content_mask, dtype=torch.float)
         batch['input_ref'] = torch.tensor(input_ref, dtype=torch.float)
-        batch['input_ori_ref'] = input_ori_ref
+        batch['refs'] = refs
         batches.append(batch)
         N += B
     return batches

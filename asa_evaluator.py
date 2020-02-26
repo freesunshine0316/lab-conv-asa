@@ -83,43 +83,51 @@ def make_data(conversation, tokenizer):
             'sentences_bert_idxs': [], # [batch, wordseq, wordlen]
             'sentences_bert_toks': [], # [batch, seq]
             'zp_info': []} # [a sequence of ...]
-
-
     return data
 
 
 def predict_sentiment(model, batches):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
-    loss = 0.0
     predictions = []
+    loss = 0.0
+    n_ref, n_prd, n_both = 0.0, 0.0, 0.0
     for step, ori_batch in enumerate(batches):
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
-        step_outputs = model(batch)
-        loss += step_outputs['loss'].item()
-        wordseq_lengths = step_outputs['wordseq_lengths'].cpu().tolist() # [batch]
-        for i, tag_ids in enumerate(step_outputs['predictions'].cpu().tolist()): # [batch, wordseq]
+        batch_outputs = model(batch)
+        loss += batch_outputs['loss'].item()
+        batch_wordseq_lengths = batch_outputs['wordseq_lengths'].cpu().tolist() # [batch]
+        for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()): # [batch, wordseq]
             N = wordseq_lengths[i]
-            sentiments = extract_sentiment_from_tags(tag_ids[:N])
-            predictions.append(sentiments)
+            prds = extract_sentiment_from_tags(tag_ids[:N])
+            predictions.append(prds)
+            if batch['refs'] is not None:
+                n_ref += len(batch['refs'][i])
+                n_prd += len(prds)
+                n_both += sum(x in batch['refs'][i] for x in prds)
     model.train()
-    return {}
+    return {'loss':loss, 'predictions':predictions, 'score':calc_f1(n_prd, n_ref, n_both)}
 
 
 def predict_mention(model, batches):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
-    loss = 0.0
     predictions = []
+    loss = 0.0
+    n_right, n_total = 0.0, 0.0
     for step, ori_batch in enumerate(batches):
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
         step_outputs = model(batch)
         loss += step_outputs['loss'].item()
         wordseq_num = step_outputs['wordseq_num']
-        for x in step_outputs['predictions'].cpu().tolist():
+        for i, x in enumerate(step_outputs['predictions'].cpu().tolist()):
             st = x // wordseq_num
             ed = x % wordseq_num
             predictions.append((st,ed))
+            n_right += ((st,ed) in batch['refs'][i])
+            n_total += 1.0
     model.train()
-    return {}
+    return {'loss':loss, 'predictions':predictions, 'score':n_right/n_total}
 
 
 if __name__ == '__main__':
