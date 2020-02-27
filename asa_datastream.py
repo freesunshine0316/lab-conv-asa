@@ -2,6 +2,7 @@
 import os, sys, json, codecs
 import numpy as np
 import torch
+import ast
 
 SENTI_STR_MAPPING = {1:'Pos', 0:'Neu', -1:'Neg'}
 TAG_MAPPING = {'O':0, 'PosB':1, 'PosI':2, 'NeuB':3, 'NeuI':4, 'NegB':5, 'NegI':6}
@@ -22,6 +23,13 @@ def check_tag_polarity(tid):
         return -1
     assert False, 'illegal tid {}'.format(tid)
 
+def is_int(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
 
 def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
     data = []
@@ -29,6 +37,11 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
     for line in open(path, 'r'):
         if line.strip() == '': # end of a dialogue
             if len(conv) > 0:
+                #print('\n'.join(' '.join('{}({})'.format(x,i) for i, x in enumerate(turn)) for turn in conv))
+                #print(sentiment)
+                #print(mention)
+                #print('========')
+                #sys.exit(0)
                 data.append({'conv':conv, 'sentiment':sentiment, 'mention':mention})
                 conv, sentiment, mention = [], [], []
         turn = []
@@ -37,6 +50,9 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
                 st = len(turn)
                 var = tok[1:]
             elif tok.endswith(']'):
+                if len(tok) > 1 and is_int(tok[:-1]) == False: # in case of situations like 》]
+                    turn.append(tok[:-1])
+                    tok = tok[-1]
                 ed = len(turn)
                 senti = None if tok == ']' else int(tok[:-1])
                 if senti is not None:
@@ -71,7 +87,7 @@ def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
             input_tok2word.append(positions[:1])
         elif tok2word_strategy == 'last':
             input_tok2word.append(positions[-1:])
-        elif tok2word_strategy in ('mean', 'sum', ):
+        elif tok2word_strategy == 'avg':
             input_tok2word.append(positions)
         else:
             assert False, 'Unsupported tok2word_strategy: ' + tok2word_strategy
@@ -110,7 +126,7 @@ def merge(a_ids, a_tok2word, b_ids, b_tok2word):
 
 # w_1^1, ..., w_1^{N_1}, ..., w_i^{N_i} [SEP] w_{s_j}^1, ..., w_{s_j}^{|s_j|} [CLS]
 def extract_features_mention(data, tokenizer, tok2word_strategy):
-    CLS_ID, SEP_ID = tokenizer.convert_tokens_to_ids(['CLS', 'SEP'])
+    CLS_ID, SEP_ID = tokenizer.convert_tokens_to_ids(['[CLS]', '[SEP]'])
     features = []
     for dialogue in data:
         all_ids = []
@@ -151,7 +167,6 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
                             st, ed = mentn['span']
                             st, ed = st + all_offsets[mentn['turn_id']], ed + all_offsets[mentn['turn_id']]
                             input_ref.append((st,ed))
-                            refs.add((st, ed))
                     if has_mention:
                         features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_ref':input_ref,
                             'input_content_bound':input_content_bound})
@@ -160,11 +175,9 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
 
 def make_batch(features, task, batch_size, is_sort=True, is_shuffle=False):
     if task == 'sentiment':
-        return make_batch_sentiment(data, tokenizer, tok2word,
-                is_sort=is_sort, is_shuffle=is_shuffle)
+        return make_batch_sentiment(features, batch_size, is_sort=is_sort, is_shuffle=is_shuffle)
     elif task == 'mention':
-        return make_batch_mention(data, tokenizer, tok2word,
-                is_sort=is_sort, is_shuffle=is_shuffle)
+        return make_batch_mention(features, batch_size, is_sort=is_sort, is_shuffle=is_shuffle)
     else:
         assert False, 'Unknown'
 

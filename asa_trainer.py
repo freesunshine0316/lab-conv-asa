@@ -30,17 +30,17 @@ def dev_eval(model, batches, log_file):
     print('Loss: %.2f, time: %.3f sec' % (outputs['loss'], duration))
     log_file.write('Loss: %.2f, time: %.3f sec\n' % (outputs['loss'], duration))
     if FLAGS.task == 'sentiment':
-        accu = outputs['score']
-        print('Accuracy: %.2f' % (100*accu))
-        log_file.write('Accuracy: %.2f\n' % (100*accu))
-        log_file.flush()
-        return accu
-    else:
         p, r, f = outputs['score']
         print('F1: %.2f, Precision: %.2f, Recall: %.2f' % (100*f, 100*p, 100*r))
         log_file.write('F1: %.2f, Precision: %.2f, Recall: %.2f\n' % (100*f, 100*p, 100*r))
         log_file.flush()
         return f
+    else:
+        accu = outputs['score']
+        print('Accuracy: %.2f' % (100*accu))
+        log_file.write('Accuracy: %.2f\n' % (100*accu))
+        log_file.flush()
+        return accu
 
 
 def main():
@@ -69,17 +69,17 @@ def main():
     print('Loading data and making batches')
     train_features = asa_datastream.load_and_extract_features(FLAGS.train_path, tokenizer,
             FLAGS.tok2word_strategy, FLAGS.task)
-    train_batches = asa_datastream.make_batch(features, FLAGS.task, FLAGS.batch_size,
+    train_batches = asa_datastream.make_batch(train_features, FLAGS.task, FLAGS.batch_size,
             is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
 
     dev_features = asa_datastream.load_and_extract_features(FLAGS.dev_path, tokenizer,
             FLAGS.tok2word_strategy, FLAGS.task)
-    dev_batches = asa_datastream.make_batch(features, FLAGS.task, FLAGS.batch_size,
+    dev_batches = asa_datastream.make_batch(dev_features, FLAGS.task, FLAGS.batch_size,
             is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
 
     test_features = asa_datastream.load_and_extract_features(FLAGS.test_path, tokenizer,
             FLAGS.tok2word_strategy, FLAGS.task)
-    test_batches = asa_datastream.make_batch(features, FLAGS.task, FLAGS.batch_size,
+    test_batches = asa_datastream.make_batch(test_features, FLAGS.task, FLAGS.batch_size,
             is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
 
     print("Num training examples = {}".format(len(train_features)))
@@ -99,7 +99,10 @@ def main():
     if n_gpu > 1:
         model = nn.DataParallel(model)
 
-    print('Starting the training loop, total epochs = {}'.format(FLAGS.num_epochs))
+    update_steps = len(train_batches) * FLAGS.num_epochs
+    if FLAGS.grad_accum_steps > 1:
+        update_steps = update_steps // FLAGS.grad_accum_steps
+    print('Starting the training loop, total epochs = {}, update steps = {}'.format(FLAGS.num_epochs, update_steps))
 
     named_params = list(model.named_parameters())
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -109,7 +112,7 @@ def main():
     optimizer = BertAdam(grouped_params,
             lr=FLAGS.learning_rate,
             warmup=FLAGS.warmup_proportion,
-            t_total=train_steps)
+            t_total=update_steps)
 
     best_score = 0.0
     finished_steps, finished_epochs = 0, 0

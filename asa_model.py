@@ -3,13 +3,13 @@ import torch
 import torch.nn as nn
 import os, sys, json, codecs
 from pytorch_pretrained_bert.modeling import BertPreTrainedModel, BertModel
-from nn_utils import AdditiveAttention
+from nn_utils import AdditiveAttention, gather_tok2word
 from asa_datastream import TAG_MAPPING, TAG_MAPPING_SIMP
 
 
 class BertAsaSe(BertPreTrainedModel):
     def __init__(self, config):
-        super(BertZP, self).__init__(config)
+        super(BertAsaSe, self).__init__(config)
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.label_num = len(TAG_MAPPING)
@@ -22,7 +22,7 @@ class BertAsaSe(BertPreTrainedModel):
         tok_repre = self.dropout(tok_repre) # [batch, seq, dim]
 
         # cast from tok-level to word-level
-        word_repre = utils.gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
+        word_repre = gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
 
         # make predictions
         logits = self.classifier(word_repre) # [batch, wordseq, label]
@@ -41,7 +41,7 @@ class BertAsaSe(BertPreTrainedModel):
 
 class BertAsaMe(BertPreTrainedModel):
     def __init__(self, config):
-        super(BertZP, self).__init__(config)
+        super(BertAsaMe, self).__init__(config)
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         hidden_size = config.hidden_size
@@ -55,10 +55,10 @@ class BertAsaMe(BertPreTrainedModel):
         tok_repre = self.dropout(tok_repre) # [batch, seq, dim]
 
         # cast from tok-level to word-level
-        word_repre = utils.gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
+        word_repre = gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
 
         # generate final distribution
-        senti_repre = (word_repre * batch['senti_mask'].unsqueeze(-1)).sum(dim=1) # [batch, dim]
+        senti_repre = (word_repre * batch['input_senti_mask'].unsqueeze(-1)).sum(dim=1) # [batch, dim]
         _, st_dist = self.st_classifier(senti_repre, word_repre, batch['input_content_mask']) # [batch, wordseq]
         _, ed_dist = self.ed_classifier(senti_repre, word_repre, batch['input_content_mask']) # [batch, wordseq]
         final_dist = st_dist.unsqueeze(dim=2) * ed_dist.unsqueeze(dim=1) # [batch, wordseq, wordseq]
@@ -67,7 +67,10 @@ class BertAsaMe(BertPreTrainedModel):
         batch_size, wordseq_num, bert_dim = list(word_repre.size())
         a = torch.arange(wordseq_num).view(1, wordseq_num, 1)
         b = torch.arange(wordseq_num).view(1, 1, wordseq_num)
-        mask = (a <= b).float() #
+        if torch.cuda.is_available():
+            a = a.cuda()
+            b = b.cuda()
+        mask = (a <= b).float() # [batch, wordseq, wordseq]
         predictions = (final_dist * mask).view(batch_size, wordseq_num * wordseq_num).argmax(dim=1) # [batch]
 
         # calculate loss

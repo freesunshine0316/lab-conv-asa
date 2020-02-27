@@ -19,12 +19,13 @@ def gather_tok2word(tok_repre, input_tok2word, input_tok2word_mask):
     word_repre = word_repre.view(batch_size, wordseq_num, word_len, hidden_dim)
     word_repre = word_repre * input_tok2word_mask.unsqueeze(-1)
     # [batch, wordseq, dim]
-    word_repre = word_repre.mean(dim=2) if self.tok2word == 'mean' else word_repre.sum(dim=2)
+    word_repre = word_repre.mean(dim=2)
     return word_repre
 
 
 class AdditiveAttention(nn.Module):
-    def __init__(query_size, memory_size, attn_size):
+    def __init__(self, query_size, memory_size, attn_size):
+        super(AdditiveAttention, self).__init__()
         self.w = nn.Linear(query_size, attn_size)
         self.u = nn.Linear(memory_size, attn_size)
         self.v = nn.Linear(attn_size, 1)
@@ -33,7 +34,7 @@ class AdditiveAttention(nn.Module):
     # memory: [batch, seq, memory_size]
     # memory_mask: [batch, seq]
     # v^\top * tanh(W * query + U * memory)
-    def forward(query, memory, memory_mask):
+    def forward(self, query, memory, memory_mask):
         assert len(query.size()) == 2 and len(memory.size()) == 3
         tmp = F.tanh(self.w(query.unsqueeze(dim=1)) + self.u(memory)) # [batch, seq, attn_size]
         tmp = self.v(tmp).squeeze(dim=2) + memory_mask.log() # [batch, seq]
