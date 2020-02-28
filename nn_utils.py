@@ -5,6 +5,10 @@ import torch.nn.functional as F
 import os, sys, json, codecs
 
 
+def is_nan(tensor):
+    return torch.isnan(tensor).any().item()
+
+
 # tok_repre: [batch, seq, dim]
 # input_tok2word: [batch, wordseq, wordlen]
 def gather_tok2word(tok_repre, input_tok2word, input_tok2word_mask):
@@ -38,6 +42,8 @@ class AdditiveAttention(nn.Module):
         assert len(query.size()) == 2 and len(memory.size()) == 3
         tmp = F.tanh(self.w(query.unsqueeze(dim=1)) + self.u(memory)) # [batch, seq, attn_size]
         tmp = self.v(tmp).squeeze(dim=2) + memory_mask.log() # [batch, seq]
+        print(tmp)
         weights = F.softmax(tmp, dim=-1) # [batch, seq]
+        assert is_nan(weights) == False
         aggr = (memory * weights.unsqueeze(dim=2)).sum(dim=1) # [batch, memory_size]
         return aggr, weights

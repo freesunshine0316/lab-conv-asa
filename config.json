@@ -1,10 +1,10 @@
 {
-    "train_path": "data/xxx",
-    "dev_path": "data/xxx",
-    "test_path": "data/xxx",
-    "task": "mention",
+    "train_path": "data/0_1000_wangante.txt",
+    "dev_path": "data/0_1000_wangante.txt",
+    "test_path": "data/0_1000_wangante.txt",
+    "task": "sentiment",
     "log_dir": "logs",
-    "suffix": "me_bert",
+    "suffix": "se_bert",
     "pretrained_path": "bert-base-chinese",
 
     "is_shuffle": false,
@@ -12,7 +12,7 @@
     "is_batch_mix": true,
 
     "batch_size": 10,
-    "num_epochs": 10,
+    "num_epochs": 30,
     "grad_accum_steps": 1,
     "learning_rate": 1e-5,
     "warmup_proportion": 0.1,

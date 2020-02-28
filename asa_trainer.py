@@ -31,8 +31,9 @@ def dev_eval(model, batches, log_file):
     log_file.write('Loss: %.2f, time: %.3f sec\n' % (outputs['loss'], duration))
     if FLAGS.task == 'sentiment':
         p, r, f = outputs['score']
-        print('F1: %.2f, Precision: %.2f, Recall: %.2f' % (100*f, 100*p, 100*r))
-        log_file.write('F1: %.2f, Precision: %.2f, Recall: %.2f\n' % (100*f, 100*p, 100*r))
+        f_un = outputs['score_un'][-1]
+        print('F1: %.2f, Precision: %.2f, Recall: %.2f, F1-un: %.2f' % (100*f, 100*p, 100*r, 100*f_un))
+        log_file.write('F1: %.2f, Precision: %.2f, Recall: %.2f, F1-un: %.2f\n' % (100*f, 100*p, 100*r, 100*f_un))
         log_file.flush()
         return f
     else:

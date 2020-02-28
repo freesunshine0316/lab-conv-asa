@@ -21,14 +21,15 @@ def extract_sentiment_from_tags(tag_ids):
     prev_senti = None
     st = -1
     for i, tid in enumerate(tag_ids):
-        cur_senti = asa_datastream.check_tag_sentiment(tid)
         if asa_datastream.is_tag_begin(tid):
+            cur_senti = asa_datastream.check_tag_sentiment(tid)
             if st != -1:
                 assert prev_senti != None
                 sentiments.append((st, i-1, prev_senti))
             prev_senti = cur_senti
             st = i
         elif asa_datastream.is_tag_inner(tid):
+            cur_senti = asa_datastream.check_tag_sentiment(tid)
             if st == -1 or (st != -1 and prev_senti != cur_senti): # O Neu-I or Pos-B Neu-I
                 if st != -1 and prev_senti != cur_senti:
                     assert prev_senti != None
@@ -70,7 +71,7 @@ def extract_sentiment_from_tags(tag_ids):
 
 
 def calc_f1(n_out, n_ref, n_both):
-    #print('n_out {}, n_ref {}, n_both {}'.format(n_out, n_ref, n_both))
+    print('n_out {}, n_ref {}, n_both {}'.format(n_out, n_ref, n_both))
     pr = n_both/n_out if n_out > 0.0 else 0.0
     rc = n_both/n_ref if n_ref > 0.0 else 0.0
     f1 = 2.0*pr*rc/(pr+rc) if pr > 0.0 and rc > 0.0 else 0.0
@@ -91,22 +92,26 @@ def predict_sentiment(model, batches):
     model.eval()
     predictions = []
     loss = 0.0
-    n_ref, n_prd, n_both = 0.0, 0.0, 0.0
+    n_ref, n_prd, n_both, n_both_un = 0.0, 0.0, 0.0, 0.0
     for step, ori_batch in enumerate(batches):
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
         batch_outputs = model(batch)
         loss += batch_outputs['loss'].item()
         batch_wordseq_lengths = batch_outputs['wordseq_lengths'].cpu().tolist() # [batch]
         for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()): # [batch, wordseq]
-            N = wordseq_lengths[i]
-            prds = extract_sentiment_from_tags(tag_ids[:N])
+            cur_wordseq_len = batch_wordseq_lengths[i]
+            prds = extract_sentiment_from_tags(tag_ids[:cur_wordseq_len])
             predictions.append(prds)
             if batch['refs'] is not None:
-                n_ref += len(batch['refs'][i])
+                refs = set(tuple(x) for x in batch['refs'][i])
+                refs_un = set(tuple(x[:2]) for x in batch['refs'][i])
+                n_ref += len(refs)
                 n_prd += len(prds)
-                n_both += sum(x in batch['refs'][i] for x in prds)
+                n_both += sum(tuple(x) in refs for x in prds)
+                n_both_un += sum(tuple(x[:2]) in refs_un for x in prds)
     model.train()
-    return {'loss':loss, 'predictions':predictions, 'score':calc_f1(n_prd, n_ref, n_both)}
+    return {'loss':loss, 'predictions':predictions, 'score':calc_f1(n_prd, n_ref, n_both),
+            'score_un':calc_f1(n_prd, n_ref, n_both_un)}
 
 
 def predict_mention(model, batches):
@@ -128,6 +133,17 @@ def predict_mention(model, batches):
             n_total += 1.0
     model.train()
     return {'loss':loss, 'predictions':predictions, 'score':n_right/n_total}
+
+
+#is_test = False
+#if is_test:
+#    from asa_datastream import TAG_MAPPING
+#    tag_seq = ['PosB', 'PosI', 'PosB', 'NeuB', 'NegI', 'O', 'NegI', 'PosI', 'PosB']
+#    tag_ids = [TAG_MAPPING[x] for x in tag_seq]
+#    sentiments = extract_sentiment_from_tags(tag_ids)
+#    print(sentiments)
+#    print('(0,1,+1) (2,2,+1) (3,3,0) (4,4,-1) (6,6,-1) (7,7,+1) (8,8,+1)')
+#    sys.exit(0)
 
 
 if __name__ == '__main__':
