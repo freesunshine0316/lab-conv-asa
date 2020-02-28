@@ -53,7 +53,6 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
                     turn.append(tok[:-1])
                     tok = tok[-1]
                 ed = len(turn) - 1 # [st, ed]
-                assert st <= ed, '{} ||| ({} {} {})'.format(turn, var, st, ed)
                 senti = None if tok == ']' else int(tok[:-1])
                 if senti is not None:
                     sentiment.append({'var':var, 'span':(st,ed), 'turn_id':len(conv), 'senti':senti})
@@ -61,7 +60,6 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
                     mention.append({'var':var, 'span':(st,ed), 'turn_id':len(conv)})
             else:
                 turn.append(tok)
-        assert len(turn) > 0, line
         conv.append(turn)
 
     if task == 'sentiment':
@@ -138,9 +136,7 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
             cur_ids, cur_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
             merge(all_ids, all_tok2word, cur_ids, cur_tok2word)
             all_offsets.append(len(all_tok2word))
-            len_token, len_word = len(all_ids), len(all_tok2word)
             for senti in dialogue['sentiment']:
-                assert len_token == len(all_ids) and len_word == len(all_tok2word)
                 if senti['turn_id'] == i:
                     has_mention = False
 
@@ -253,12 +249,12 @@ def make_batch_mention(features, batch_size, is_sort=True, is_shuffle=False):
             curwordseq = len(features[N+i]['input_tok2word'])
             input_senti_mask[i,:curwordseq] = features[N+i]['input_senti_mask']
             curcontent = features[N+i]['input_content_bound']
-            input_content_mask[i,:curcontent] = [1,]*curcontent
+            input_content_mask[i,:curcontent] = [1.0,]*curcontent
             ref_num = len(features[N+i]['input_ref'])
             assert ref_num > 0
             for st, ed in features[N+i]['input_ref']:
-                input_ref[i,st,0] = 1.0#/ref_num
-                input_ref[i,ed,1] = 1.0#/ref_num
+                input_ref[i,st,0] = 1.0/ref_num
+                input_ref[i,ed,1] = 1.0/ref_num
                 refs[i].add((st,ed))
         batch['input_senti_mask'] = torch.tensor(input_senti_mask, dtype=torch.float)
         batch['input_content_mask'] = torch.tensor(input_content_mask, dtype=torch.float)

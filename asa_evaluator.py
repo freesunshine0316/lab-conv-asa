@@ -132,6 +132,7 @@ def predict_mention(model, batches):
             n_right += ((st,ed) in batch['refs'][i])
             n_total += 1.0
     model.train()
+    print('n_right {}, n_total {}'.format(n_right, n_total))
     return {'loss':loss, 'predictions':predictions, 'score':n_right/n_total}
 
 

@@ -46,6 +46,7 @@ class AdditiveAttention(nn.Module):
         assert len(query.size()) == 2 and len(memory.size()) == 3
         tmp = F.tanh(self.w(query.unsqueeze(dim=1)) + self.u(memory)) # [batch, seq, attn_size]
         tmp = self.v(tmp).squeeze(dim=2) + memory_mask.log() # [batch, seq]
-        weights = clip_and_normalize(F.softmax(tmp, dim=-1), 1e-4) # [batch, seq]
+        weights = clip_and_normalize(F.softmax(tmp, dim=-1), 1e-5) # [batch, seq]
         aggr = (memory * weights.unsqueeze(dim=2)).sum(dim=1) # [batch, memory_size]
         return aggr, weights
+
