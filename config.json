@@ -2,7 +2,7 @@
     "train_path": "data/0_1000_wangante.txt",
     "dev_path": "data/0_1000_wangante.txt",
     "test_path": "data/0_1000_wangante.txt",
-    "task": "sentiment",
+    "task": "mention",
     "log_dir": "logs",
     "suffix": "se_bert",
     "pretrained_path": "bert-base-chinese",

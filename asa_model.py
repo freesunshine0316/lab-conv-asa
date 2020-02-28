@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import os, sys, json, codecs
 from pytorch_pretrained_bert.modeling import BertPreTrainedModel, BertModel
-from nn_utils import AdditiveAttention, gather_tok2word
+from nn_utils import AdditiveAttention, gather_tok2word, has_nan
 from asa_datastream import TAG_MAPPING
 
 
@@ -61,12 +61,12 @@ class BertAsaMe(BertPreTrainedModel):
 
         wordseq_mask_bool = batch['input_tok2word_mask'].sum(dim=2) > 0
         wordseq_lengths = wordseq_mask_bool.long().sum(dim=1)
-        print(wordseq_lengths)
 
         # generate final distribution
         senti_repre = (word_repre * batch['input_senti_mask'].unsqueeze(-1)).sum(dim=1) # [batch, dim]
         _, st_dist = self.st_classifier(senti_repre, word_repre, batch['input_content_mask']) # [batch, wordseq]
         _, ed_dist = self.ed_classifier(senti_repre, word_repre, batch['input_content_mask']) # [batch, wordseq]
+        assert has_nan(st_dist.log()) == False and has_nan(ed_dist.log()) == False
         final_dist = st_dist.unsqueeze(dim=2) * ed_dist.unsqueeze(dim=1) # [batch, wordseq, wordseq]
 
         # make predictions
@@ -83,7 +83,11 @@ class BertAsaMe(BertPreTrainedModel):
         if batch['input_ref'] is not None:
             st_ref, ed_ref = batch['input_ref'].split(1, dim=-1)
             st_ref, ed_ref = st_ref.squeeze(dim=-1), ed_ref.squeeze(dim=-1) # [batch, wordseq]
-            tmp = (st_ref * st_dist.log() + ed_ref * ed_dist.log()) * batch['input_content_mask'] # [batch, wordseq]
+            assert has_nan(st_ref) == False and has_nan(ed_ref) == False
+            tmp_st = st_ref * (st_dist.log())
+            tmp_ed = ed_ref * (ed_dist.log())
+            assert has_nan(tmp_st) == False and has_nan(tmp_ed) == False
+            tmp = (tmp_st + tmp_ed) * batch['input_content_mask'] # [batch, wordseq]
             loss = -1.0 * tmp.sum() / batch['input_content_mask'].sum()
         else:
             loss = torch.tensor(0.0).cuda() if torch.cuda.is_available() else torch.tensor(0.0)

@@ -148,10 +148,7 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
                     input_ids = all_ids + [SEP_ID,]
                     input_tok2word = all_tok2word + [[len(input_ids)-1]]
                     input_senti_mask = [0.0 for _ in input_tok2word]
-
-                    # INIT decision part
-                    input_content_bound = len(all_tok2word)
-                    input_ref = []
+                    input_content_bound = len(all_tok2word)-1
 
                     # ADD w_{s_j}^1, ..., w_{s_j}^{|s_j|} [CLS]
                     senti_st, senti_ed = senti['span'] # [st, ed)
@@ -162,6 +159,7 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
                     input_tok2word += [[len(input_ids)-1]]
                     input_senti_mask.append(0.0)
 
+                    input_ref = []
                     var = senti['var']
                     for mentn in dialogue['mention']:
                         if mentn['var'] == var and mentn['turn_id'] <= i:
@@ -257,9 +255,10 @@ def make_batch_mention(features, batch_size, is_sort=True, is_shuffle=False):
             curcontent = features[N+i]['input_content_bound']
             input_content_mask[i,:curcontent] = [1,]*curcontent
             ref_num = len(features[N+i]['input_ref'])
+            assert ref_num > 0
             for st, ed in features[N+i]['input_ref']:
-                input_ref[i,st,0] = 1.0/ref_num
-                input_ref[i,ed,1] = 1.0/ref_num
+                input_ref[i,st,0] = 1.0#/ref_num
+                input_ref[i,ed,1] = 1.0#/ref_num
                 refs[i].add((st,ed))
         batch['input_senti_mask'] = torch.tensor(input_senti_mask, dtype=torch.float)
         batch['input_content_mask'] = torch.tensor(input_content_mask, dtype=torch.float)
