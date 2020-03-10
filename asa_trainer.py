@@ -32,8 +32,9 @@ def dev_eval(model, batches, log_file):
     if FLAGS.task == 'sentiment':
         p, r, f = outputs['score']
         f_un = outputs['score_un'][-1]
-        print('F1: %.2f, Precision: %.2f, Recall: %.2f, F1-un: %.2f' % (100*f, 100*p, 100*r, 100*f_un))
-        log_file.write('F1: %.2f, Precision: %.2f, Recall: %.2f, F1-un: %.2f\n' % (100*f, 100*p, 100*r, 100*f_un))
+        accu = outputs['accu']
+        print('F1: %.2f, (Precision: %.2f, Recall: %.2f), F1-un: %.2f, Accu: %.2f'%(100*f, 100*p, 100*r, 100*f_un, 100*accu))
+        log_file.write('F1: %.2f, Precision: %.2f, Recall: %.2f, F1-un: %.2fAccu: %.2f\n'%(100*f, 100*p, 100*r, 100*f_un, 100*accu))
         log_file.flush()
         return f
     else:
@@ -96,6 +97,9 @@ def main():
         model = asa_model.BertAsaSe.from_pretrained(FLAGS.pretrained_path)
     else:
         assert False, 'Unsupported task: ' + FLAGS.task
+    if os.path.exists(path_prefix + ".bert_model.bin"):
+        print('!!Existing pretrained model. Loading the model...')
+        model.load_state_dict(torch.load(path_prefix + ".bert_model.bin"))
     model.to(device)
     if n_gpu > 1:
         model = nn.DataParallel(model)

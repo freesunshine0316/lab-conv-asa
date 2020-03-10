@@ -3,6 +3,7 @@ import os, sys, json, codecs
 import numpy as np
 import torch
 import ast
+import collections
 
 SENTI_STR_MAPPING = {1:'Pos', 0:'Neu', -1:'Neg'}
 TAG_MAPPING = {'O':0, 'PosB':1, 'PosI':2, 'NeuB':3, 'NeuI':4, 'NegB':5, 'NegI':6}
@@ -37,31 +38,39 @@ def is_int(s):
 def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
     data = []
     conv, sentiment, mention = [], [], []
+    counts = collections.defaultdict(int)
     for line in open(path, 'r'):
         if line.strip() == '': # end of a dialogue
             if len(conv) > 0:
                 data.append({'conv':conv, 'sentiment':sentiment, 'mention':mention})
+                counts['sent'] += len(conv)
+                counts['mention'] += len(mention)
             conv, sentiment, mention = [], [], []
             continue
         turn = []
         for tok in line.split():
             if tok.startswith('['):
                 st = len(turn)
-                var = tok[1:]
+                variables = tok[1:].split('+')
             elif tok.endswith(']'):
                 if len(tok) > 1 and is_int(tok[:-1]) == False: # handling situations like '》]'
-                    turn.append(tok[:-1])
-                    tok = tok[-1]
+                    assert False, line
+                    #turn.append(tok[:-1])
+                    #tok = tok[-1]
                 ed = len(turn) - 1 # [st, ed]
                 senti = None if tok == ']' else int(tok[:-1])
                 if senti is not None:
-                    sentiment.append({'var':var, 'span':(st,ed), 'turn_id':len(conv), 'senti':senti})
+                    for var in variables:
+                        sentiment.append({'var':var, 'span':(st,ed), 'turn_id':len(conv), 'senti':senti})
                 else:
+                    assert len(variables) == 1
+                    var = variables[0]
                     mention.append({'var':var, 'span':(st,ed), 'turn_id':len(conv)})
             else:
                 turn.append(tok)
         conv.append(turn)
 
+    print(counts)
     if task == 'sentiment':
         return extract_features_sentiment(data, tokenizer, tok2word_strategy)
     elif task == 'mention':
@@ -96,6 +105,7 @@ def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
 
 def extract_features_sentiment(data, tokenizer, tok2word_strategy):
     features = []
+    #right, total, men_1, men_2 = 0.0, 0.0, 0.0, 0.0
     for dialogue in data:
         for i, turn in enumerate(dialogue['conv']):
             input_ids, input_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
@@ -109,7 +119,12 @@ def extract_features_sentiment(data, tokenizer, tok2word_strategy):
                     input_tags[st] = TAG_MAPPING[senti_str+'B']
                     for j in range(st+1, ed+1):
                         input_tags[j] = TAG_MAPPING[senti_str+'I']
-                features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_tags':input_tags, 'refs':refs})
+            features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_tags':input_tags, 'refs':refs})
+            #right += sum(x != 0 for x in input_tags)
+            #total += len(input_tags)
+            #men_2 += len(refs)
+    #men_1 += sum(len(d['sentiment']) for d in data)
+    #print('Sentiment tags percent: %.2f, mentions %f --> %f' % (100*right/total, men_1, men_2))
     return features
 
 

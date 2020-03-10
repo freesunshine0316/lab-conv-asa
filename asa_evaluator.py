@@ -30,12 +30,13 @@ def extract_sentiment_from_tags(tag_ids):
             st = i
         elif asa_datastream.is_tag_inner(tid):
             cur_senti = asa_datastream.check_tag_sentiment(tid)
-            if st == -1 or (st != -1 and prev_senti != cur_senti): # O Neu-I or Pos-B Neu-I
+            if st == -1 or (st != -1 and prev_senti != cur_senti): # O Neu-I or Pos-B Neu-I or Neg-I Neu-I
                 if st != -1 and prev_senti != cur_senti:
                     assert prev_senti != None
                     sentiments.append((st, i-1, prev_senti))
                 prev_senti = cur_senti
                 st = i
+            # Neu-B Neu-I or Neu-I Neu-I
         else:
             assert tid == 0
             if st != -1:
@@ -47,27 +48,6 @@ def extract_sentiment_from_tags(tag_ids):
         assert prev_senti != None
         sentiments.append((st, len(tag_ids)-1, prev_senti))
     return sentiments
-
-
-# mention is predicted by boundaries, not tags
-#def extract_metnion_from_tags(tag_ids):
-#    mentions = []
-#    st = -1
-#    for i, tid in enumerate(tag_ids):
-#        if asa_datastream.is_tag_begin(tid):
-#            if st != -1:
-#                mentions.append((st, i-1))
-#            st = i
-#        elif asa_datastream.is_tag_inner(tid):
-#            if st == -1:
-#                st = i
-#        else:
-#            if st != -1:
-#                mentions.append((st, i-1))
-#            st = -1
-#    if st != -1:
-#        mention.append((st, len(tag_ids)-1))
-#    return mentions
 
 
 def calc_f1(n_out, n_ref, n_both):
@@ -93,6 +73,7 @@ def predict_sentiment(model, batches):
     predictions = []
     loss = 0.0
     n_ref, n_prd, n_both, n_both_un = 0.0, 0.0, 0.0, 0.0
+    n_right, n_total = 0.0, 0.0
     for step, ori_batch in enumerate(batches):
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
         batch_outputs = model(batch)
@@ -109,9 +90,11 @@ def predict_sentiment(model, batches):
                 n_prd += len(prds)
                 n_both += sum(tuple(x) in refs for x in prds)
                 n_both_un += sum(tuple(x[:2]) in refs_un for x in prds)
+                n_right += sum(tag_ids[j] == ori_batch['input_tags'][i,j].item() for j in range(cur_wordseq_len))
+                n_total += cur_wordseq_len
     model.train()
     return {'loss':loss, 'predictions':predictions, 'score':calc_f1(n_prd, n_ref, n_both),
-            'score_un':calc_f1(n_prd, n_ref, n_both_un)}
+            'score_un':calc_f1(n_prd, n_ref, n_both_un), 'accu':n_right/n_total}
 
 
 def predict_mention(model, batches):
@@ -136,17 +119,6 @@ def predict_mention(model, batches):
     return {'loss':loss, 'predictions':predictions, 'score':n_right/n_total}
 
 
-#is_test = False
-#if is_test:
-#    from asa_datastream import TAG_MAPPING
-#    tag_seq = ['PosB', 'PosI', 'PosB', 'NeuB', 'NegI', 'O', 'NegI', 'PosI', 'PosB']
-#    tag_ids = [TAG_MAPPING[x] for x in tag_seq]
-#    sentiments = extract_sentiment_from_tags(tag_ids)
-#    print(sentiments)
-#    print('(0,1,+1) (2,2,+1) (3,3,0) (4,4,-1) (6,6,-1) (7,7,+1) (8,8,+1)')
-#    sys.exit(0)
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--prefix_path', type=str, required=True, help='Prefix path to the saved model')
@@ -163,24 +135,23 @@ if __name__ == '__main__':
     if 'bert' in FLAGS.pretrained_path:
         tokenizer = BertTokenizer.from_pretrained(FLAGS.pretrained_path)
 
-    pro_mapping = json.load(open(FLAGS.pro_mapping, 'r'))
-    print('Number of predefined pronouns: {}, they are: {}'.format(len(pro_mapping), pro_mapping.values()))
-
-    # ZP setting
-    is_only_azp = False
-
     # load data and make_batches
     print('Loading data and making batches')
-    data_type = 'resolution_inference'
-    data = make_data(args.in_path, tokenizer)
-    features = zp_datastream.extract_features(data, tokenizer,
-            char2word=FLAGS.char2word, data_type=data_type, is_only_azp=is_only_azp)
-    batches = zp_datastream.make_batch(data_type, features, FLAGS.batch_size,
+    features = asa_datastream.load_and_extract_features(args.in_path, tokenizer,
+            FLAGS.tok2word_strategy, FLAGS.task)
+    batches = asa_datastream.make_batch(features, FLAGS.task, FLAGS.batch_size,
             is_sort=False, is_shuffle=False)
 
+    print("Num examples = {}".format(len(features)))
+    print("Num batches = {}".format(len(batches)))
+
     print('Compiling model')
-    model = zp_model.BertZP.from_pretrained(FLAGS.pretrained_path, char2word=FLAGS.char2word,
-            pro_num=len(pro_mapping), max_relative_position=FLAGS.max_relative_position)
+    if FLAGS.task == 'mention':
+        model = asa_model.BertAsaMe.from_pretrained(FLAGS.pretrained_path)
+    elif FLAGS.task == 'sentiment':
+        model = asa_model.BertAsaSe.from_pretrained(FLAGS.pretrained_path)
+    else:
+        assert False, 'Unsupported task: ' + FLAGS.task
     model.load_state_dict(torch.load(args.prefix_path + ".bert_model.bin"))
     model.to(device)
 
