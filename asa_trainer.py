@@ -79,10 +79,10 @@ def main():
     dev_batches = asa_datastream.make_batch(dev_features, FLAGS.task, FLAGS.batch_size,
             is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
 
-    test_features = asa_datastream.load_and_extract_features(FLAGS.test_path, tokenizer,
-            FLAGS.tok2word_strategy, FLAGS.task)
-    test_batches = asa_datastream.make_batch(test_features, FLAGS.task, FLAGS.batch_size,
-            is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
+    #test_features = asa_datastream.load_and_extract_features(FLAGS.test_path, tokenizer,
+    #        FLAGS.tok2word_strategy, FLAGS.task)
+    #test_batches = asa_datastream.make_batch(test_features, FLAGS.task, FLAGS.batch_size,
+    #        is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
 
     print("Num training examples = {}".format(len(train_features)))
     print("Num training batches = {}".format(len(train_batches)))
@@ -165,9 +165,9 @@ def main():
             config_utils.save_config(FLAGS, path_prefix + ".config.json")
         print('-------------')
         log_file.write('-------------\n')
-        dev_eval(model, test_batches, log_file)
-        print('=============')
-        log_file.write('=============\n')
+        #dev_eval(model, test_batches, log_file)
+        #print('=============')
+        #log_file.write('=============\n')
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         finished_epochs += 1

@@ -5,6 +5,7 @@ import os, sys, json, codecs
 from pytorch_pretrained_bert.modeling import BertPreTrainedModel, BertModel
 from nn_utils import AdditiveAttention, gather_tok2word, has_nan
 from asa_datastream import TAG_MAPPING
+from tencent_transformer import MultiheadAttention, TransformerEncoderLayer
 
 
 class BertAsaSe(BertPreTrainedModel):
@@ -12,6 +13,7 @@ class BertAsaSe(BertPreTrainedModel):
         super(BertAsaSe, self).__init__(config)
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.encoder_layer = TransformerEncoderLayer(config.hidden_size, 8, dim_feedforward=256)
         self.label_num = len(TAG_MAPPING)
         self.classifier = nn.Linear(config.hidden_size, self.label_num)
 
@@ -23,17 +25,26 @@ class BertAsaSe(BertPreTrainedModel):
 
         # cast from tok-level to word-level
         word_repre = gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
+        word_repre = word_repre.transpose(0,1).contiguous()
+        word_mask_bool = batch['input_tok2word_mask'].sum(dim=2) > 0
+        word_repre = self.encoder_layer(word_repre, src_mask=word_mask_bool)
+        word_repre = word_repre.transpose(0,1).contiguous()
+        assert has_nan(word_repre) == False
+
+        batch_size, wordseq_len, _ = list(word_repre.size())
+        total_len = batch_size * wordseq_len
 
         # make predictions
-        logits = self.classifier(word_repre) # [batch, wordseq, label]
+        logits = self.classifier(word_repre).log_softmax(dim=2) # [batch, wordseq, label]
         predictions = logits.argmax(dim=2) # [batch, wordseq]
 
         if batch['input_tags'] is not None:
-            active_positions = batch['input_tok2word_mask'].sum(dim=2).view(-1) > 0 # [batch * wordseq]
-            active_logits = logits.view(-1, self.label_num)[active_positions]
-            active_refs = batch['input_tags'].view(-1)[active_positions]
+            active_positions = word_mask_bool.view(total_len) # [batch * wordseq]
+            active_logits = logits.view(total_len, self.label_num)[active_positions]
+            active_refs = batch['input_tags'].view(total_len)[active_positions]
             loss = nn.CrossEntropyLoss()(active_logits, active_refs)
         else:
+            assert False
             loss = torch.tensor(0.0).cuda() if torch.cuda.is_available() else torch.tensor(0.0)
 
         wordseq_mask_bool = batch['input_tok2word_mask'].sum(dim=2) > 0

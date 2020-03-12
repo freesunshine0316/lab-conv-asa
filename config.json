@@ -1,5 +1,5 @@
 {
-    "train_path": "data/duconv_dev.txt",
+    "train_path": "data/duconv_train.txt",
     "dev_path": "data/duconv_dev.txt",
     "test_path": "data/duconv_test.txt",
     "task": "sentiment",
@@ -11,10 +11,10 @@
     "is_sort": true,
     "is_batch_mix": true,
 
-    "batch_size": 30,
+    "batch_size": 20,
     "num_epochs": 30,
     "grad_accum_steps": 1,
-    "learning_rate": 2e-5,
+    "learning_rate": 1e-5,
     "warmup_proportion": 0.1,
     "max_relative_position": 0,
 
