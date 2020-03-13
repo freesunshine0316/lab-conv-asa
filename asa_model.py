@@ -13,7 +13,8 @@ class BertAsaSe(BertPreTrainedModel):
         super(BertAsaSe, self).__init__(config)
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.encoder_layer = TransformerEncoderLayer(config.hidden_size, 8, dim_feedforward=256)
+        self.encoder = nn.ModuleList([TransformerEncoderLayer(config.hidden_size, 8, dim_feedforward=256) \
+                for i in range(4)])
         self.label_num = len(TAG_MAPPING)
         self.classifier = nn.Linear(config.hidden_size, self.label_num)
 
@@ -27,7 +28,8 @@ class BertAsaSe(BertPreTrainedModel):
         word_repre = gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
         word_repre = word_repre.transpose(0,1).contiguous()
         word_mask_bool = batch['input_tok2word_mask'].sum(dim=2) > 0
-        word_repre = self.encoder_layer(word_repre, src_mask=word_mask_bool)
+        for encoder_layer in self.encoder:
+            word_repre = encoder_layer(word_repre, src_key_padding_mask=~word_mask_bool)
         word_repre = word_repre.transpose(0,1).contiguous()
         assert has_nan(word_repre) == False
 
