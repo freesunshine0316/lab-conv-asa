@@ -6,9 +6,9 @@ import ast
 import collections
 
 SENTI_STR_MAPPING = {1:'Pos', 0:'Neu', -1:'Neg'}
-TAG_MAPPING = {'O':0, 'PosB':1, 'PosI':2, 'NeuB':3, 'NeuI':4, 'NegB':5, 'NegI':6}
-TAGS = ['O', 'PosB', 'PosI', 'NeuB', 'NeuI', 'NegB', 'NegI']
-
+TAG_MAPPING = {'O':0, 'PosB':1, 'PosI':2, 'NeuB':3, 'NeuI':4, 'NegB':5, 'NegI':6, 'X':7}
+TAGS = ['O', 'PosB', 'PosI', 'NeuB', 'NeuI', 'NegB', 'NegI', 'X']
+OID, XID = 0, 7
 
 def is_tag_begin(tid):
     return tid in (1,3,5,)
@@ -60,6 +60,7 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
                 if senti is not None:
                     for var in variables:
                         sentiment.append({'var':var, 'span':(st,ed), 'turn_id':len(conv), 'senti':senti})
+                    ## print recognized sentiments
                     #print('{} ||| {}'.format(i, ' '.join(turn[st:ed+1])))
                 else:
                     assert len(variables) == 1
@@ -78,10 +79,11 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
 
 
 def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
-    input_ids = [] # [tok number]
-    input_tok2word = [] # [word number, word length]
+    input_ids = [] # [tokseq]
+    input_tok2word = [] # [wordseq, wordlen]
+    input_tok2word_rev = [] # [tokseq]
     total_offset = 0
-    for word in word_seq:
+    for i, word in enumerate(word_seq):
         if word in ('A:', 'B:'):
             toks = ['<S>',] if word == 'A:' else ['<T>',]
         else:
@@ -89,7 +91,8 @@ def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
         assert len(toks) > 0
         idxs = tokenizer.convert_tokens_to_ids(toks)
         input_ids.extend(idxs)
-        positions = [i + total_offset for i in range(len(idxs))]
+        input_tok2word_rev.extend([i for _ in idxs])
+        positions = [j + total_offset for j in range(len(idxs))]
         total_offset += len(idxs)
         if tok2word_strategy == 'first':
             input_tok2word.append(positions[:1])
@@ -99,29 +102,28 @@ def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
             input_tok2word.append(positions)
         else:
             assert False, 'Unsupported tok2word_strategy: ' + tok2word_strategy
-    return input_ids, input_tok2word
+    return input_ids, input_tok2word, input_tok2word_rev
 
 
 def extract_features_sentiment(data, tokenizer, tok2word_strategy):
     features = []
-    #right, total = 0.0, 0.0
     for dialogue in data:
         for i, turn in enumerate(dialogue['conv']):
-            input_ids, input_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
-            input_tags = [TAG_MAPPING['O'] for _ in input_tok2word] # [word_seq]
+            input_ids, input_tok2word, _ = bert_tokenize(turn, tokenizer, tok2word_strategy)
+            input_tags = []
+            for word in input_tok2word:
+                for k, tok in enumerate(word):
+                    input_tags.append(TAG_MAPPING['O'] if k == 0 else TAG_MAPPING['X'])
             refs = set()
             for senti in dialogue['sentiment']:
                 if senti['turn_id'] == i:
                     st, ed = senti['span']
                     refs.add((st, ed, senti['senti']))
                     senti_str = SENTI_STR_MAPPING[senti['senti']]
-                    input_tags[st] = TAG_MAPPING[senti_str+'B']
+                    input_tags[input_tok2word[st][0]] = TAG_MAPPING[senti_str+'B']
                     for j in range(st+1, ed+1):
-                        input_tags[j] = TAG_MAPPING[senti_str+'I']
+                        input_tags[input_tok2word[j][0]] = TAG_MAPPING[senti_str+'I']
             features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_tags':input_tags, 'refs':refs})
-            #right += sum(x != 0 for x in input_tags)
-            #total += len(input_tags)
-    #print('Sentiment tags percent: %.2f' % (100*right/total))
     return features
 
 
@@ -145,7 +147,7 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
         all_tok2word = []
         all_offsets = [0,]
         for i, turn in enumerate(dialogue['conv']):
-            cur_ids, cur_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
+            cur_ids, cur_tok2word, _ = bert_tokenize(turn, tokenizer, tok2word_strategy)
             merge(all_ids, all_tok2word, cur_ids, cur_tok2word)
             all_offsets.append(len(all_tok2word))
             for senti in dialogue['sentiment']:
@@ -160,7 +162,7 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
 
                     # ADD w_{s_j}^1, ..., w_{s_j}^{|s_j|} [CLS]
                     senti_st, senti_ed = senti['span'] # [st, ed)
-                    senti_ids, senti_tok2word = bert_tokenize(turn[senti_st:senti_ed+1], tokenizer, tok2word_strategy)
+                    senti_ids, senti_tok2word, _ = bert_tokenize(turn[senti_st:senti_ed+1], tokenizer, tok2word_strategy)
                     merge(input_ids, input_tok2word, senti_ids, senti_tok2word)
                     input_senti_mask.extend([1.0 for _ in senti_tok2word])
                     input_ids += [CLS_ID,]
@@ -202,6 +204,9 @@ def make_batch_unified(features, B, N):
     input_mask = np.zeros([B, maxseq], dtype=np.float)
     input_tok2word = np.zeros([B, maxwordseq, maxwordlen], dtype=np.long)
     input_tok2word_mask = np.zeros([B, maxwordseq, maxwordlen], dtype=np.float)
+    # keep them as np.array or list for now
+    input_lens = np.zeros([B], dtype=np.long)
+    input_wordlens = np.zeros([B], dtype=np.long)
 
     for i in range(0, B):
         curseq = len(features[N+i]['input_ids'])
@@ -212,6 +217,8 @@ def make_batch_unified(features, B, N):
             curwordlen = len(features[N+i]['input_tok2word'][j])
             input_tok2word[i,j,:curwordlen] = features[N+i]['input_tok2word'][j]
             input_tok2word_mask[i,j,:curwordlen] = [1,]*curwordlen
+        input_lens[i] = curseq
+        input_wordlens[i] = curwordseq
 
     input_ids = torch.tensor(input_ids, dtype=torch.long)
     input_mask = torch.tensor(input_mask, dtype=torch.float)
@@ -219,7 +226,8 @@ def make_batch_unified(features, B, N):
     input_tok2word_mask = torch.tensor(input_tok2word_mask, dtype=torch.float)
 
     return {'input_ids':input_ids, 'input_mask':input_mask, 'input_tok2word':input_tok2word,
-            'input_tok2word_mask':input_tok2word_mask}, maxseq, maxwordseq, maxwordlen
+            'input_tok2word_mask':input_tok2word_mask, 'input_lens':input_lens, 'input_wordlens':input_wordlens}, \
+                    maxseq, maxwordseq, maxwordlen
 
 
 def make_batch_sentiment(features, batch_size, is_sort=True, is_shuffle=False):
@@ -232,10 +240,10 @@ def make_batch_sentiment(features, batch_size, is_sort=True, is_shuffle=False):
     while N < len(features):
         B = min(batch_size, len(features)-N)
         batch, maxseq, maxwordseq, maxwordlen = make_batch_unified(features, B, N)
-        input_tags = np.zeros([B, maxwordseq], dtype=np.long)
+        input_tags = np.zeros([B, maxseq], dtype=np.long)
         for i in range(0, B):
-            curwordseq = len(features[N+i]['input_tok2word'])
-            input_tags[i,:curwordseq] = features[N+i]['input_tags']
+            curseq = len(features[N+i]['input_ids'])
+            input_tags[i,:curseq] = features[N+i]['input_tags']
         batch['input_tags'] = torch.tensor(input_tags, dtype=torch.long)
         batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
         batches.append(batch)

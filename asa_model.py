@@ -24,24 +24,23 @@ class BertAsaSe(BertPreTrainedModel):
         tok_repre, _ = self.bert(batch['input_ids'], None, batch['input_mask'], output_all_encoded_layers=False)
         tok_repre = self.dropout(tok_repre) # [batch, seq, dim]
 
-        # cast from tok-level to word-level
-        word_repre = gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
-        word_repre = word_repre.transpose(0,1).contiguous()
-        word_mask_bool = batch['input_tok2word_mask'].sum(dim=2) > 0
+        # encode
+        tok_repre = tok_repre.transpose(0,1).contiguous()
+        tok_mask = batch['input_mask'] > 0
         for encoder_layer in self.encoder:
-            word_repre = encoder_layer(word_repre, src_key_padding_mask=~word_mask_bool)
-        word_repre = word_repre.transpose(0,1).contiguous()
-        assert has_nan(word_repre) == False
+            tok_repre = encoder_layer(tok_repre, src_key_padding_mask=~tok_mask)
+        tok_repre = tok_repre.transpose(0,1).contiguous()
+        assert has_nan(tok_repre) == False
 
-        batch_size, wordseq_len, _ = list(word_repre.size())
-        total_len = batch_size * wordseq_len
+        batch_size, seq_len, _ = list(tok_repre.size())
+        total_len = batch_size * seq_len
 
         # make predictions
-        logits = self.classifier(word_repre).log_softmax(dim=2) # [batch, wordseq, label]
-        predictions = logits.argmax(dim=2) # [batch, wordseq]
+        logits = self.classifier(tok_repre).log_softmax(dim=2) # [batch, seq, label]
+        predictions = logits.argmax(dim=2) # [batch, dseq]
 
         if batch['input_tags'] is not None:
-            active_positions = word_mask_bool.view(total_len) # [batch * wordseq]
+            active_positions = tok_mask.view(total_len) # [batch * seq]
             active_logits = logits.view(total_len, self.label_num)[active_positions]
             active_refs = batch['input_tags'].view(total_len)[active_positions]
             loss = nn.CrossEntropyLoss()(active_logits, active_refs)
@@ -49,9 +48,7 @@ class BertAsaSe(BertPreTrainedModel):
             assert False
             loss = torch.tensor(0.0).cuda() if torch.cuda.is_available() else torch.tensor(0.0)
 
-        wordseq_mask_bool = batch['input_tok2word_mask'].sum(dim=2) > 0
-        wordseq_lengths = wordseq_mask_bool.long().sum(dim=1)
-        return {'loss':loss, 'predictions':predictions, 'wordseq_lengths':wordseq_lengths}
+        return {'loss':loss, 'predictions':predictions}
 
 
 class BertAsaMe(BertPreTrainedModel):

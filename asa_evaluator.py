@@ -11,8 +11,8 @@ import torch.nn as nn
 import config_utils
 import asa_model
 import asa_datastream
+from asa_datastream import OID, XID
 from pytorch_pretrained_bert.tokenization import BertTokenizer
-
 
 # Pos-B Pos-I Pos-B Neu-B Neg-I O Neg-I Pos-I Pos-B
 # (0,1,+1) (2,2,+1) (3,3,0) (4,4,-1) (6,6,-1) (7,7,+1) (8,8,+1)
@@ -76,13 +76,23 @@ def predict_sentiment(model, batches):
     n_right, n_total = 0.0, 0.0
     for step, ori_batch in enumerate(batches):
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
+        batch_lens = ori_batch['input_lens']
+        batch_wordlens = ori_batch['input_wordlens']
+        batch_tok2word = ori_batch['input_tok2word'].numpy()
         batch_outputs = model(batch)
         loss += batch_outputs['loss'].item()
-        batch_wordseq_lengths = batch_outputs['wordseq_lengths'].cpu().tolist() # [batch]
-        for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()): # [batch, wordseq]
-            cur_wordseq_len = batch_wordseq_lengths[i]
-            prds = extract_sentiment_from_tags(tag_ids[:cur_wordseq_len])
+        for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()): # [batch, seq]
+            cur_len = batch_lens[i]
+            cur_wordlen = batch_wordlens[i]
+
+            wordtag_ids = []
+            for j in range(cur_wordlen):
+                x = tag_ids[batch_tok2word[i,j,0]]
+                x = OID if x == XID else x
+                wordtag_ids.append(x)
+            prds = extract_sentiment_from_tags(wordtag_ids)
             predictions.append(prds)
+
             if batch['refs'] is not None:
                 refs = set(tuple(x) for x in batch['refs'][i])
                 refs_un = set(tuple(x[:2]) for x in batch['refs'][i])
@@ -90,8 +100,11 @@ def predict_sentiment(model, batches):
                 n_prd += len(prds)
                 n_both += sum(tuple(x) in refs for x in prds)
                 n_both_un += sum(tuple(x[:2]) in refs_un for x in prds)
-                n_right += sum(tag_ids[j] == ori_batch['input_tags'][i,j].item() for j in range(cur_wordseq_len))
-                n_total += cur_wordseq_len
+                for j in range(cur_len):
+                    ref_tag_id = ori_batch['input_tags'][i,j].item()
+                    if ref_tag_id not in (OID, XID):
+                        n_right += (tag_ids[j] == ref_tag_id)
+                        n_total += 1.0
     model.train()
     return {'loss':loss, 'predictions':predictions, 'score':calc_f1(n_prd, n_ref, n_both),
             'score_un':calc_f1(n_prd, n_ref, n_both_un), 'accu':n_right/n_total}
