@@ -11,6 +11,7 @@ import torch.nn as nn
 import config_utils
 import asa_model
 import asa_datastream
+from asa_datastream import TAGS
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 
 
@@ -67,7 +68,7 @@ def make_data(conversation, tokenizer):
     return data
 
 
-def predict_sentiment(model, batches):
+def predict_sentiment(model, batches, verbose=0):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
     predictions = []
@@ -80,8 +81,8 @@ def predict_sentiment(model, batches):
         loss += batch_outputs['loss'].item()
         batch_wordseq_lengths = batch_outputs['wordseq_lengths'].cpu().tolist() # [batch]
         for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()): # [batch, wordseq]
-            cur_wordseq_len = batch_wordseq_lengths[i]
-            prds = extract_sentiment_from_tags(tag_ids[:cur_wordseq_len])
+            wordseq_len = batch_wordseq_lengths[i]
+            prds = extract_sentiment_from_tags(tag_ids[:wordseq_len])
             predictions.append(prds)
             if batch['refs'] is not None:
                 refs = set(tuple(x) for x in batch['refs'][i])
@@ -90,8 +91,18 @@ def predict_sentiment(model, batches):
                 n_prd += len(prds)
                 n_both += sum(tuple(x) in refs for x in prds)
                 n_both_un += sum(tuple(x[:2]) in refs_un for x in prds)
-                n_right += sum(tag_ids[j] == ori_batch['input_tags'][i,j].item() for j in range(cur_wordseq_len))
-                n_total += cur_wordseq_len
+                for j in range(wordseq_len):
+                    ref_tag = ori_batch['input_tags'][i,j].item()
+                    if ref_tag != 0:
+                        n_right += (tag_ids[j] == ref_tag)
+                        n_total += 1.0
+            if verbose:
+                assert batch['refs'] is not None
+                print(batch['turn'][i])
+                print(refs)
+                print(' '.join('{}({})'.format(TAGS[x],j) for j, x in enumerate(tag_ids)))
+                print(prds)
+                print('===========')
     model.train()
     return {'loss':loss, 'predictions':predictions, 'score':calc_f1(n_prd, n_ref, n_both),
             'score_un':calc_f1(n_prd, n_ref, n_both_un), 'accu':n_right/n_total}

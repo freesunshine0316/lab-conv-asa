@@ -16,7 +16,8 @@ class BertAsaSe(BertPreTrainedModel):
         self.encoder = nn.ModuleList([TransformerEncoderLayer(config.hidden_size, 8, dim_feedforward=256) \
                 for i in range(4)])
         self.label_num = len(TAG_MAPPING)
-        self.classifier = nn.Linear(config.hidden_size, self.label_num)
+        self.classifier = nn.Sequential(torch.nn.Linear(config.hidden_size, 384),
+                nn.ReLU(), nn.Linear(384, self.label_num))
 
 
     def forward(self, batch):
@@ -26,6 +27,8 @@ class BertAsaSe(BertPreTrainedModel):
 
         # cast from tok-level to word-level
         word_repre = gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
+
+        # encode
         word_repre = word_repre.transpose(0,1).contiguous()
         word_mask_bool = batch['input_tok2word_mask'].sum(dim=2) > 0
         for encoder_layer in self.encoder:

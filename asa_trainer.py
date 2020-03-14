@@ -19,11 +19,11 @@ import config_utils
 
 FLAGS = None
 
-def dev_eval(model, batches, log_file):
+def dev_eval(model, batches, log_file, verbose=0):
     print('Evaluating on devset')
     start = time.time()
     if FLAGS.task == 'sentiment':
-        outputs = asa_evaluator.predict_sentiment(model, batches)
+        outputs = asa_evaluator.predict_sentiment(model, batches, verbose=verbose)
     else:
         outputs = asa_evaluator.predict_mention(model, batches)
     duration = time.time() - start
@@ -104,6 +104,13 @@ def main():
     if n_gpu > 1:
         model = nn.DataParallel(model)
 
+    if os.path.exists(path_prefix + ".bert_model.bin"):
+        best_score = dev_eval(model, dev_batches, log_file, verbose=1)
+        print('Initial performance: {}'.format(best_score))
+    else:
+        best_score = 0.0
+    sys.exit(0)
+
     update_steps = len(train_batches) * FLAGS.num_epochs
     if FLAGS.grad_accum_steps > 1:
         update_steps = update_steps // FLAGS.grad_accum_steps
@@ -119,7 +126,6 @@ def main():
             warmup=FLAGS.warmup_proportion,
             t_total=update_steps)
 
-    best_score = 0.0
     finished_steps, finished_epochs = 0, 0
     train_batch_ids = list(range(0, len(train_batches)))
     model.train()
@@ -155,7 +161,8 @@ def main():
         duration = time.time() - epoch_start
         print('\nTraining loss: %s, time: %.3f sec' % (str(epoch_loss), duration))
         log_file.write('\nTraining loss: %s, time: %.3f sec\n' % (str(epoch_loss), duration))
-        cur_score = dev_eval(model, dev_batches, log_file)
+        verbose = 1 if eid >= 5 else 0
+        cur_score = dev_eval(model, dev_batches, log_file, verbose=verbose)
         if cur_score > best_score:
             print('Saving weights, score {} (prev_best) < {} (cur)'.format(best_score, cur_score))
             log_file.write('Saving weights, score {} (prev_best) < {} (cur)\n'.format(best_score, cur_score))

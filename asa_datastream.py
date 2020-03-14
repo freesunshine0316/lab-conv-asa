@@ -118,7 +118,8 @@ def extract_features_sentiment(data, tokenizer, tok2word_strategy):
                     input_tags[st] = TAG_MAPPING[senti_str+'B']
                     for j in range(st+1, ed+1):
                         input_tags[j] = TAG_MAPPING[senti_str+'I']
-            features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_tags':input_tags, 'refs':refs})
+            features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_tags':input_tags,
+                'refs':refs, 'turn':' '.join('{}({})'.format(x,j) for j, x in enumerate(turn))})
             #right += sum(x != 0 for x in input_tags)
             #total += len(input_tags)
     #print('Sentiment tags percent: %.2f' % (100*right/total))
@@ -238,6 +239,7 @@ def make_batch_sentiment(features, batch_size, is_sort=True, is_shuffle=False):
             input_tags[i,:curwordseq] = features[N+i]['input_tags']
         batch['input_tags'] = torch.tensor(input_tags, dtype=torch.long)
         batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
+        batch['turn'] = [features[N+i]['turn'] for i in range(0, B)]
         batches.append(batch)
         N += B
     return batches
