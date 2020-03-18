@@ -62,7 +62,7 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
                         sentiment.append({'var':var, 'span':(st,ed), 'turn_id':len(conv), 'senti':senti})
                     #print('{} ||| {}'.format(i, ' '.join(turn[st:ed+1])))
                 else:
-                    assert len(variables) == 1
+                    assert len(variables) == 1, line
                     var = variables[0]
                     mention.append({'var':var, 'span':(st,ed), 'turn_id':len(conv)})
             else:

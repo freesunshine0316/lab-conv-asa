@@ -77,7 +77,7 @@ def main():
     dev_features = asa_datastream.load_and_extract_features(FLAGS.dev_path, tokenizer,
             FLAGS.tok2word_strategy, FLAGS.task)
     dev_batches = asa_datastream.make_batch(dev_features, FLAGS.task, FLAGS.batch_size,
-            is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
+            is_sort=False, is_shuffle=False)
 
     #test_features = asa_datastream.load_and_extract_features(FLAGS.test_path, tokenizer,
     #        FLAGS.tok2word_strategy, FLAGS.task)
@@ -109,7 +109,6 @@ def main():
         print('Initial performance: {}'.format(best_score))
     else:
         best_score = 0.0
-    sys.exit(0)
 
     update_steps = len(train_batches) * FLAGS.num_epochs
     if FLAGS.grad_accum_steps > 1:
