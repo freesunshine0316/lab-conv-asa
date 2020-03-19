@@ -107,6 +107,7 @@ def main():
     if os.path.exists(path_prefix + ".bert_model.bin"):
         best_score = dev_eval(model, dev_batches, log_file, verbose=1)
         print('Initial performance: {}'.format(best_score))
+        sys.exit(0)
     else:
         best_score = 0.0
 

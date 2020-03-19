@@ -96,12 +96,12 @@ def predict_sentiment(model, batches, verbose=0):
                     if ref_tag != 0:
                         n_right += (tag_ids[j] == ref_tag)
                         n_total += 1.0
-            if verbose:
+            if verbose and set(prds) != refs:
                 assert batch['refs'] is not None
                 print(batch['turn'][i])
                 print(refs)
-                print(' '.join('{}({})'.format(TAGS[x],j) for j, x in enumerate(tag_ids)))
                 print(prds)
+                print(' '.join('{}({})'.format(TAGS[x],j) for j, x in enumerate(tag_ids[:wordseq_len])))
                 print('===========')
     model.train()
     return {'loss':loss, 'predictions':predictions, 'score':calc_f1(n_prd, n_ref, n_both),
