@@ -79,10 +79,10 @@ def main():
     dev_batches = asa_datastream.make_batch(dev_features, FLAGS.task, FLAGS.batch_size,
             is_sort=False, is_shuffle=False)
 
-    #test_features = asa_datastream.load_and_extract_features(FLAGS.test_path, tokenizer,
-    #        FLAGS.tok2word_strategy, FLAGS.task)
-    #test_batches = asa_datastream.make_batch(test_features, FLAGS.task, FLAGS.batch_size,
-    #        is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
+    test_features = asa_datastream.load_and_extract_features(FLAGS.test_path, tokenizer,
+            FLAGS.tok2word_strategy, FLAGS.task)
+    test_batches = asa_datastream.make_batch(test_features, FLAGS.task, FLAGS.batch_size,
+            is_sort=False, is_shuffle=False)
 
     print("Num training examples = {}".format(len(train_features)))
     print("Num training batches = {}".format(len(train_batches)))
@@ -105,7 +105,7 @@ def main():
         model = nn.DataParallel(model)
 
     if os.path.exists(path_prefix + ".bert_model.bin"):
-        best_score = dev_eval(model, dev_batches, log_file, verbose=1)
+        best_score = dev_eval(model, test_batches, log_file, verbose=1)
         print('Initial performance: {}'.format(best_score))
         sys.exit(0)
     else:
@@ -161,7 +161,7 @@ def main():
         duration = time.time() - epoch_start
         print('\nTraining loss: %s, time: %.3f sec' % (str(epoch_loss), duration))
         log_file.write('\nTraining loss: %s, time: %.3f sec\n' % (str(epoch_loss), duration))
-        verbose = 1 if eid >= 5 else 0
+        verbose = 0 if eid >= 5 else 0
         cur_score = dev_eval(model, dev_batches, log_file, verbose=verbose)
         if cur_score > best_score:
             print('Saving weights, score {} (prev_best) < {} (cur)'.format(best_score, cur_score))
