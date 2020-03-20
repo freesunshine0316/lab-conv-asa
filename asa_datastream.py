@@ -69,6 +69,20 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
                 turn.append(tok)
         conv.append(turn)
 
+    num_conv, num_sentence, num_senti, num_mntn, num_mntn_cross = 0.0, 0.0, 0.0, 0.0, 0.0
+    for instance in data:
+        conv, sentiment, mention = instance['conv'], instance['sentiment'], instance['mention']
+        num_conv += 1.0
+        num_sentence += len(conv)
+        num_senti += len(sentiment)
+        num_mntn += len(mention)
+        for mntn in mention:
+            has_same_turn = any(mntn['turn_id'] == x['turn_id'] for x in sentiment)
+            num_mntn_cross += (has_same_turn == False)
+    print('Number of convs {} and sentences {}'.format(num_conv, num_sentence))
+    print('Number of sentiments {}'.format(num_senti))
+    print('Number of mention {} and cross ratio {}'.format(num_mntn, num_mntn_cross/num_mntn))
+
     if task == 'sentiment':
         return extract_features_sentiment(data, tokenizer, tok2word_strategy)
     elif task == 'mention':
