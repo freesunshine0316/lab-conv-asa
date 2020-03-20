@@ -1,5 +1,5 @@
 {
-    "train_path": "data/duconv_train.txt",
+    "train_path": "data/duconv.txt",
     "dev_path": "data/duconv_dev.txt",
     "test_path": "data/duconv_test.txt",
     "task": "sentiment",

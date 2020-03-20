@@ -69,19 +69,27 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
                 turn.append(tok)
         conv.append(turn)
 
-    num_conv, num_sentence, num_senti, num_mntn, num_mntn_cross = 0.0, 0.0, 0.0, 0.0, 0.0
+    num_conv, num_sentence, num_mntn, num_mntn_cross = 0.0, 0.0, 0.0, 0.0
+    num_senti, num_senti_cross, num_senti_pos, num_senti_neu, num_senti_neg = 0.0, 0.0, 0.0, 0.0, 0.0
     for instance in data:
         conv, sentiment, mention = instance['conv'], instance['sentiment'], instance['mention']
         num_conv += 1.0
         num_sentence += len(conv)
         num_senti += len(sentiment)
+        for senti in sentiment:
+            has_same_turn = any(senti['turn_id'] == x['turn_id'] and senti['var'] == x['var'] for x in mention)
+            num_senti_cross += (has_same_turn == False)
+            num_senti_pos += (senti['senti'] == 1)
+            num_senti_neu += (senti['senti'] == 0)
+            num_senti_neg += (senti['senti'] == -1)
         num_mntn += len(mention)
-        for mntn in mention:
-            has_same_turn = any(mntn['turn_id'] == x['turn_id'] for x in sentiment)
-            num_mntn_cross += (has_same_turn == False)
+        #for mntn in mention:
+        #    has_same_turn = any(mntn['turn_id'] == x['turn_id'] for x in sentiment)
+        #    um_mntn_cross += (has_same_turn == False)
     print('Number of convs {} and sentences {}'.format(num_conv, num_sentence))
-    print('Number of sentiments {}'.format(num_senti))
-    print('Number of mention {} and cross ratio {}'.format(num_mntn, num_mntn_cross/num_mntn))
+    print('Number of sentiments {}, cross {}, pos {}, neu {}, neg {}'.format(num_senti,
+        num_senti_cross/num_senti, num_senti_pos/num_senti, num_senti_neu/num_senti, num_senti_neg/num_senti))
+    print('Number of mention {} and cross {}'.format(num_mntn, num_mntn_cross/num_mntn))
 
     if task == 'sentiment':
         return extract_features_sentiment(data, tokenizer, tok2word_strategy)
@@ -118,7 +126,6 @@ def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
 
 def extract_features_sentiment(data, tokenizer, tok2word_strategy):
     features = []
-    #right, total = 0.0, 0.0
     for dialogue in data:
         for i, turn in enumerate(dialogue['conv']):
             input_ids, input_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
@@ -134,9 +141,6 @@ def extract_features_sentiment(data, tokenizer, tok2word_strategy):
                         input_tags[j] = TAG_MAPPING[senti_str+'I']
             features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_tags':input_tags,
                 'refs':refs, 'turn':' '.join('{}({})'.format(x,j) for j, x in enumerate(turn))})
-            #right += sum(x != 0 for x in input_tags)
-            #total += len(input_tags)
-    #print('Sentiment tags percent: %.2f' % (100*right/total))
     return features
 
 

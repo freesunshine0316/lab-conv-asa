@@ -52,7 +52,7 @@ def extract_sentiment_from_tags(tag_ids):
 
 
 def calc_f1(n_out, n_ref, n_both):
-    print('n_out {}, n_ref {}, n_both {}'.format(n_out, n_ref, n_both))
+    #print('n_out {}, n_ref {}, n_both {}'.format(n_out, n_ref, n_both))
     pr = n_both/n_out if n_out > 0.0 else 0.0
     rc = n_both/n_ref if n_ref > 0.0 else 0.0
     f1 = 2.0*pr*rc/(pr+rc) if pr > 0.0 and rc > 0.0 else 0.0
@@ -104,8 +104,10 @@ def predict_sentiment(model, batches, verbose=0):
                 print(' '.join('{}({})'.format(TAGS[x],j) for j, x in enumerate(tag_ids[:wordseq_len])))
                 print('===========')
     model.train()
-    return {'loss':loss, 'predictions':predictions, 'score':calc_f1(n_prd, n_ref, n_both),
-            'score_un':calc_f1(n_prd, n_ref, n_both_un), 'accu':n_right/n_total}
+    f1 = calc_f1(n_prd, n_ref, n_both)
+    f1_un = calc_f1(n_prd, n_ref, n_both_un)
+    print('F1 {}, n_prd {}, n_ref {}, n_both {}; F1-un {}'.format(f1, n_prd, n_ref, n_both, f1_un))
+    return {'loss':loss, 'predictions':predictions, 'score':f1, 'score_un':f1_un, 'accu':n_right/n_total}
 
 
 def predict_mention(model, batches):
@@ -126,17 +128,22 @@ def predict_mention(model, batches):
             n_right += ((st,ed) in batch['refs'][i])
             n_total += 1.0
     model.train()
-    print('n_right {}, n_total {}'.format(n_right, n_total))
-    return {'loss':loss, 'predictions':predictions, 'score':n_right/n_total}
+    accu = n_right/n_total
+    print('Accuracy {}, n_right {}, n_total {}'.format(accu, n_right, n_total))
+    return {'loss':loss, 'predictions':predictions, 'score':accu}
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--prefix_path', type=str, required=True, help='Prefix path to the saved model')
-    parser.add_argument('--in_path', type=str, required=True, help='Path to the input file.')
+    parser.add_argument('--in_path', type=str, default=None, help='Path to the input file.')
     parser.add_argument('--out_path', type=str, default=None, help='Path to the output file.')
     args, unparsed = parser.parse_known_args()
     FLAGS = config_utils.load_config(args.prefix_path + ".config.json")
+
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.cuda_device
+    print("CUDA_VISIBLE_DEVICES " + os.environ['CUDA_VISIBLE_DEVICES'])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_gpu = torch.cuda.device_count()
@@ -148,7 +155,8 @@ if __name__ == '__main__':
 
     # load data and make_batches
     print('Loading data and making batches')
-    features = asa_datastream.load_and_extract_features(args.in_path, tokenizer,
+    in_path = args.in_path if args.in_path is not None else FLAGS.test_path
+    features = asa_datastream.load_and_extract_features(in_path, tokenizer,
             FLAGS.tok2word_strategy, FLAGS.task)
     batches = asa_datastream.make_batch(features, FLAGS.task, FLAGS.batch_size,
             is_sort=False, is_shuffle=False)
@@ -166,4 +174,8 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load(args.prefix_path + ".bert_model.bin"))
     model.to(device)
 
-    outputs = inference(model, FLAGS.model_type, batches, pro_mapping)
+    if FLAGS.task == 'mention':
+        predict_mention(model, batches)
+    else:
+        predict_sentiment(model, batches)
+

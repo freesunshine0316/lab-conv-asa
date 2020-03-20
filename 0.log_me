@@ -1,0 +1,12 @@
+CUDA_VISIBLE_DEVICES 7
+device: cuda, n_gpu: 1, grad_accum_steps: 1
+Loading data and making batches
+Number of convs 300.0 and sentences 2704.0
+Number of sentiments 1098.0, cross 0.45081967213114754, pos 0.8724954462659381, neu 0.03825136612021858, neg 0.08925318761384335
+Number of mention 852.0 and cross 0.0
+Num examples = 1090
+Num batches = 55
+Compiling model
+/data/home/lfsong/anaconda3/lib/python3.7/site-packages/torch/nn/functional.py:1374: UserWarning: nn.functional.tanh is deprecated. Use torch.tanh instead.
+  warnings.warn("nn.functional.tanh is deprecated. Use torch.tanh instead.")
+Accuracy 0.7623853211009174, n_right 831.0, n_total 1090.0
