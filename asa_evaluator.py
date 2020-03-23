@@ -177,5 +177,5 @@ if __name__ == '__main__':
     if FLAGS.task == 'mention':
         predict_mention(model, batches)
     else:
-        predict_sentiment(model, batches)
+        predict_sentiment(model, batches, verbose=1)
 
