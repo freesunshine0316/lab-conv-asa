@@ -143,6 +143,7 @@ if __name__ == '__main__':
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.cuda_device
+    #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     print("CUDA_VISIBLE_DEVICES " + os.environ['CUDA_VISIBLE_DEVICES'])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -171,7 +172,7 @@ if __name__ == '__main__':
         model = asa_model.BertAsaSe.from_pretrained(FLAGS.pretrained_path)
     else:
         assert False, 'Unsupported task: ' + FLAGS.task
-    model.load_state_dict(torch.load(args.prefix_path + ".bert_model.bin"))
+    model.load_state_dict(torch.load(args.prefix_path + ".bert_model.bin"))#, map_location='cpu'))
     model.to(device)
 
     if FLAGS.task == 'mention':
