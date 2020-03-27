@@ -93,7 +93,11 @@ class BertAsaMe(BertPreTrainedModel):
             a = a.cuda()
             b = b.cuda()
         mask = (a <= b).float() # [batch, wordseq, wordseq]
-        predictions = (final_dist * mask).view(batch_size, wordseq_num * wordseq_num).argmax(dim=1) # [batch]
+        span_mask = (torch.abs(a - b) <= 6).float()
+        sentid = batch['input_sentid']
+        sentid_mask = (sentid.unsqueeze(dim=1) == sentid.unsqueeze(dim=2)).float() # [batch, wordseq, wordseq]
+        predictions = (final_dist * mask * span_mask * sentid_mask).view(batch_size,
+                wordseq_num * wordseq_num).argmax(dim=1) # [batch]
 
         # calculate loss
         if batch['input_ref'] is not None:

@@ -162,11 +162,13 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
         all_tok2word = []
         all_offsets = [0,]
         all_lex = []
+        all_sentid = [] # start from 1 to avoid padding 0s
         for i, turn in enumerate(dialogue['conv']):
             cur_ids, cur_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
             merge(all_ids, all_tok2word, cur_ids, cur_tok2word)
             all_offsets.append(len(all_tok2word))
             all_lex.extend(turn)
+            all_sentid.extend([i+1 for _ in turn])
             for senti in dialogue['sentiment']:
                 if senti['turn_id'] == i:
                     has_mention = False
@@ -174,16 +176,21 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
                     # ADD w_1^1, ..., w_1^{N_1}, ..., w_i^{N_i} [SEP]
                     input_ids = all_ids + [SEP_ID,]
                     input_tok2word = all_tok2word + [[len(input_ids)-1]]
+                    input_sentid = all_sentid + [i+2,]
                     input_senti_mask = [0.0 for _ in input_tok2word]
                     input_content_bound = len(all_tok2word)-1
 
-                    # ADD w_{s_j}^1, ..., w_{s_j}^{|s_j|} [CLS]
+                    # ADD w_{s_j}^1, ..., w_{s_j}^{|s_j|}
                     senti_st, senti_ed = senti['span'] # [st, ed]
                     senti_ids, senti_tok2word = bert_tokenize(turn[senti_st:senti_ed+1], tokenizer, tok2word_strategy)
                     merge(input_ids, input_tok2word, senti_ids, senti_tok2word)
+                    input_sentid.extend([i+3 for _ in senti_tok2word])
                     input_senti_mask.extend([1.0 for _ in senti_tok2word])
+
+                    # ADD [CLS]
                     input_ids += [CLS_ID,]
                     input_tok2word += [[len(input_ids)-1]]
+                    input_sentid.append(i+4)
                     input_senti_mask.append(0.0)
 
                     input_ref = []
@@ -197,10 +204,10 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
                             input_ref.append((st,ed))
                             refs.add(''.join(all_lex[st:ed+1]))
                     if has_mention:
-                        senti_str = ' '.join(turn[senti_st:senti_ed+1])
-                        features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_ref':input_ref,
-                            'input_senti_mask':input_senti_mask, 'input_content_bound':input_content_bound,
-                            'is_cross':senti['is_cross'], 'refs':refs, 'all_lex':all_lex, 'senti_str':senti_str})
+                        senti_lex = ' '.join(turn[senti_st:senti_ed+1])
+                        features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_sentid':input_sentid,
+                            'input_senti_mask':input_senti_mask, 'input_content_bound':input_content_bound, 'input_ref':input_ref,
+                            'refs':refs, 'all_lex':all_lex, 'senti_lex':senti_lex, 'is_cross':senti['is_cross']})
     return features
 
 
@@ -277,11 +284,13 @@ def make_batch_mention(features, batch_size, is_sort=True, is_shuffle=False):
     while N < len(features):
         B = min(batch_size, len(features)-N)
         batch, maxseq, maxwordseq, maxwordlen = make_batch_unified(features, B, N)
+        input_sentid = np.zeros([B, maxwordseq], dtype=np.float)
         input_senti_mask = np.zeros([B, maxwordseq], dtype=np.float)
         input_content_mask = np.zeros([B, maxwordseq], dtype=np.float)
         input_ref = np.zeros([B, maxwordseq, 2], dtype=np.float)
         for i in range(0, B):
             curwordseq = len(features[N+i]['input_tok2word'])
+            input_sentid[i,:curwordseq] = features[N+i]['input_sentid']
             input_senti_mask[i,:curwordseq] = features[N+i]['input_senti_mask']
             curcontent = features[N+i]['input_content_bound']
             input_content_mask[i,:curcontent] = [1.0,]*curcontent
@@ -290,13 +299,14 @@ def make_batch_mention(features, batch_size, is_sort=True, is_shuffle=False):
             for st, ed in features[N+i]['input_ref']:
                 input_ref[i,st,0] = 1.0/ref_num
                 input_ref[i,ed,1] = 1.0/ref_num
+        batch['input_sentid'] = torch.tensor(input_sentid, dtype=torch.float)
         batch['input_senti_mask'] = torch.tensor(input_senti_mask, dtype=torch.float)
         batch['input_content_mask'] = torch.tensor(input_content_mask, dtype=torch.float)
         batch['input_ref'] = torch.tensor(input_ref, dtype=torch.float)
         batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
         batch['all_lex'] = [features[N+i]['all_lex'] for i in range(0, B)]
+        batch['senti_lex'] = [features[N+i]['senti_lex'] for i in range(0, B)]
         batch['is_cross'] = [features[N+i]['is_cross'] for i in range(0, B)]
-        batch['senti_str'] = [features[N+i]['senti_str'] for i in range(0, B)]
         batches.append(batch)
         N += B
     return batches
