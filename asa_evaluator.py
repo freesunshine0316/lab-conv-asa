@@ -132,6 +132,7 @@ def predict_mention(model, batches, verbose=0):
             n_right_cross += is_correct & batch['is_cross'][i]
             n_total_cross += batch['is_cross'][i]
             if verbose and not is_correct:
+                print(batch['senti_str'[i])
                 print(batch['refs'][i])
                 print(pred)
                 print('========')

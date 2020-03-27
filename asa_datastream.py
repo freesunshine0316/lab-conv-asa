@@ -178,7 +178,7 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
                     input_content_bound = len(all_tok2word)-1
 
                     # ADD w_{s_j}^1, ..., w_{s_j}^{|s_j|} [CLS]
-                    senti_st, senti_ed = senti['span'] # [st, ed)
+                    senti_st, senti_ed = senti['span'] # [st, ed]
                     senti_ids, senti_tok2word = bert_tokenize(turn[senti_st:senti_ed+1], tokenizer, tok2word_strategy)
                     merge(input_ids, input_tok2word, senti_ids, senti_tok2word)
                     input_senti_mask.extend([1.0 for _ in senti_tok2word])
@@ -197,9 +197,10 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
                             input_ref.append((st,ed))
                             refs.add(''.join(all_lex[st:ed+1]))
                     if has_mention:
+                        senti_str = ' '.join(turn[senti_st:senti_ed+1])
                         features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_ref':input_ref,
                             'input_senti_mask':input_senti_mask, 'input_content_bound':input_content_bound,
-                            'is_cross':senti['is_cross'], 'refs':refs, 'all_lex':all_lex})
+                            'is_cross':senti['is_cross'], 'refs':refs, 'all_lex':all_lex, 'senti_str':senti_str})
     return features
 
 
@@ -295,6 +296,7 @@ def make_batch_mention(features, batch_size, is_sort=True, is_shuffle=False):
         batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
         batch['all_lex'] = [features[N+i]['all_lex'] for i in range(0, B)]
         batch['is_cross'] = [features[N+i]['is_cross'] for i in range(0, B)]
+        batch['senti_str'] = [features[N+i]['senti_str'] for i in range(0, B)]
         batches.append(batch)
         N += B
     return batches
