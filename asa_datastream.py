@@ -36,7 +36,7 @@ def is_int(s):
         return False
 
 
-def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
+def load_and_extract_features(path, tokenizer, tok2word_strategy, task, portion="all"):
     data = []
     conv, sentiment, mention = [], [], []
     for i, line in enumerate(open(path, 'r')):
@@ -92,7 +92,7 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task):
     if task == 'sentiment':
         return extract_features_sentiment(data, tokenizer, tok2word_strategy)
     elif task == 'mention':
-        return extract_features_mention(data, tokenizer, tok2word_strategy)
+        return extract_features_mention(data, tokenizer, tok2word_strategy, portion)
     else:
         assert False, 'Unsupported task: ' + task
 
@@ -154,7 +154,7 @@ def merge(a_ids, a_tok2word, b_ids, b_tok2word):
 
 
 # w_1^1, ..., w_1^{N_1}, ..., w_i^{N_i} [SEP] w_{s_j}^1, ..., w_{s_j}^{|s_j|} [CLS]
-def extract_features_mention(data, tokenizer, tok2word_strategy):
+def extract_features_mention(data, tokenizer, tok2word_strategy, portion):
     CLS_ID, SEP_ID = tokenizer.convert_tokens_to_ids(['[CLS]', '[SEP]'])
     features = []
     for dialogue in data:
@@ -170,6 +170,11 @@ def extract_features_mention(data, tokenizer, tok2word_strategy):
             all_lex.extend(turn)
             all_sentid.extend([i+1 for _ in turn])
             for senti in dialogue['sentiment']:
+                if portion == 'cross' and senti['is_cross'] == False:
+                    continue
+                if portion == 'same' and senti['is_cross']:
+                    continue
+
                 if senti['turn_id'] == i:
                     has_mention = False
 

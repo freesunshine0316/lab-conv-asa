@@ -115,7 +115,9 @@ def predict_mention(model, batches, verbose=0):
     model.eval()
     predictions = []
     loss = 0.0
-    n_right, n_total, n_right_cross, n_total_cross = 0.0, 0.0, 0.0, 0.0
+    n_right, n_total = 0.0, 0.0
+    n_right_same, n_total_same = 0.0, 0.0
+    n_right_cross, n_total_cross = 0.0, 0.0
     for step, ori_batch in enumerate(batches):
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
         step_outputs = model(batch)
@@ -129,6 +131,8 @@ def predict_mention(model, batches, verbose=0):
             is_correct = pred in batch['refs'][i]
             n_right += is_correct
             n_total += 1.0
+            n_right_same += is_correct & (batch['is_cross'][i] == False)
+            n_total_same += (batch['is_cross'][i] == False)
             n_right_cross += is_correct & batch['is_cross'][i]
             n_total_cross += batch['is_cross'][i]
             if verbose and not is_correct:
@@ -138,8 +142,11 @@ def predict_mention(model, batches, verbose=0):
                 print('========')
     model.train()
     accu = n_right/n_total
+    accu_same = n_right_same/n_total_same
     accu_cross = n_right_cross/n_total_cross
-    print('Accuracy {}, n_right {}, n_total {}, accu-cross {}'.format(accu, n_right, n_total, accu_cross))
+    print('Accuracy {}, n_right {}, n_total {}'.format(accu, n_right, n_total))
+    print('Accuracy-same {}, n_right_same {}, n_total_same {}'.format(accu_same, n_right_same, n_total_same))
+    print('Accuracy-cross {}, n_right_cross {}, n_total_cross {}'.format(accu_cross, n_right_cross, n_total_cross))
     return {'loss':loss, 'predictions':predictions, 'score':accu}
 
 

@@ -70,7 +70,7 @@ def main():
     # load data and make_batches
     print('Loading data and making batches')
     train_features = asa_datastream.load_and_extract_features(FLAGS.train_path, tokenizer,
-            FLAGS.tok2word_strategy, FLAGS.task)
+            FLAGS.tok2word_strategy, FLAGS.task, FLAGS.train_portion)
     train_batches = asa_datastream.make_batch(train_features, FLAGS.task, FLAGS.batch_size,
             is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
 

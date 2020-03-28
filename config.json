@@ -2,10 +2,11 @@
     "train_path": "data/duconv.txt",
     "dev_path": "data/duconv_dev.txt",
     "test_path": "data/duconv_test.txt",
-    "task": "sentiment",
+    "task": "mention",
     "log_dir": "logs",
-    "suffix": "se_bert",
+    "suffix": "me_bert_same",
     "pretrained_path": "bert-base-chinese",
+    "train_portion": "same",
 
     "is_shuffle": false,
     "is_sort": true,
