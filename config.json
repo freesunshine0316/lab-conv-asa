@@ -4,9 +4,9 @@
     "test_path": "data/duconv_test.txt",
     "task": "mention",
     "log_dir": "logs",
-    "suffix": "me_bert_same",
+    "suffix": "me_bert_cross",
     "pretrained_path": "bert-base-chinese",
-    "train_portion": "same",
+    "train_portion": "cross",
 
     "is_shuffle": false,
     "is_sort": true,
@@ -21,5 +21,5 @@
 
     "tok2word_strategy": "avg",
     
-    "cuda_device": "7"
+    "cuda_device": "6"
 }
