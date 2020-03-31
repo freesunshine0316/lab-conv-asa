@@ -58,13 +58,10 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task, portion=
                 ed = len(turn) - 1 # [st, ed]
                 senti = None if tok == ']' else int(tok[:-1])
                 if senti is not None:
-                    for var in variables:
-                        sentiment.append({'var':var, 'span':(st,ed), 'turn_id':len(conv), 'senti':senti})
-                    #print('{} ||| {}'.format(i, ' '.join(turn[st:ed+1])))
+                    sentiment.append({'variables':variables, 'span':(st,ed), 'turn_id':len(conv), 'senti':senti})
                 else:
                     assert len(variables) == 1, line
-                    var = variables[0]
-                    mention.append({'var':var, 'span':(st,ed), 'turn_id':len(conv)})
+                    mention.append({'var':variables[0], 'span':(st,ed), 'turn_id':len(conv)})
             else:
                 turn.append(tok)
         conv.append(turn)
@@ -77,7 +74,7 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task, portion=
         num_sentence += len(conv)
         num_senti += len(sentiment)
         for senti in sentiment:
-            is_cross = not any(senti['turn_id'] == x['turn_id'] and senti['var'] == x['var'] for x in mention)
+            is_cross = not any(senti['turn_id'] == x['turn_id'] and x['var'] in senti['variables'] for x in mention)
             senti['is_cross'] = is_cross
             num_senti_cross += is_cross
             num_senti_pos += (senti['senti'] == 1)
@@ -200,9 +197,8 @@ def extract_features_mention(data, tokenizer, tok2word_strategy, portion):
 
                     input_ref = []
                     refs = set()
-                    var = senti['var']
                     for mentn in dialogue['mention']:
-                        if mentn['var'] == var and mentn['turn_id'] <= i:
+                        if mentn['var'] in senti['variables'] and mentn['turn_id'] <= i:
                             has_mention = True
                             st, ed = mentn['span']
                             st, ed = st + all_offsets[mentn['turn_id']], ed + all_offsets[mentn['turn_id']]
