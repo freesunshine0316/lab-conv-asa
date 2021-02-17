@@ -49,7 +49,6 @@ class BertAsaSe(BertPreTrainedModel):
             active_refs = batch['input_tags'].view(total_len)[active_positions]
             loss = nn.CrossEntropyLoss()(active_logits, active_refs)
         else:
-            assert False
             loss = torch.tensor(0.0).cuda() if torch.cuda.is_available() else torch.tensor(0.0)
 
         wordseq_mask_bool = batch['input_tok2word_mask'].sum(dim=2) > 0

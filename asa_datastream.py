@@ -36,7 +36,7 @@ def is_int(s):
         return False
 
 
-def load_and_extract_features(path, tokenizer, tok2word_strategy, task, portion="all"):
+def load_data(path)
     data = []
     conv, sentiment, mention = [], [], []
     for i, line in enumerate(open(path, 'r')):
@@ -44,28 +44,36 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task, portion=
             if len(conv) > 0:
                 data.append({'conv':conv, 'sentiment':sentiment, 'mention':mention})
             conv, sentiment, mention = [], [], []
-            continue
-        turn = []
-        for tok in line.split():
-            if tok.startswith('['):
-                st = len(turn)
-                variables = tok[1:].split('+')
-            elif tok.endswith(']'):
-                if len(tok) > 1 and is_int(tok[:-1]) == False: # for situations like '》]'
-                    assert False, line # right now make sure this doesn't happen
-                    #turn.append(tok[:-1])
-                    #tok = tok[-1]
-                ed = len(turn) - 1 # [st, ed]
-                senti = None if tok == ']' else int(tok[:-1])
-                if senti is not None:
-                    sentiment.append({'variables':variables, 'span':(st,ed), 'turn_id':len(conv), 'senti':senti})
+        else:
+            turn = []
+            flag = False
+            for tok in line.split():
+                if tok.startswith('['):
+                    st = len(turn)
+                    variables = tok[1:].split('+')
+                    flag = True
+                elif tok.endswith(']'):
+                    assert flag, line
+                    flag = False
+                    if len(tok) > 1:
+                        assert is_int(tok[:-1]), line # for situations like '》]'
+                    ed = len(turn) - 1 # [st, ed]
+                    senti = None if tok == ']' else int(tok[:-1])
+                    if senti is not None:
+                        sentiment.append({'variables':variables, 'span':(st,ed), 'turn_id':len(conv), 'senti':senti})
+                    else:
+                        assert len(variables) == 1, line
+                        mention.append({'var':variables[0], 'span':(st,ed), 'turn_id':len(conv)})
                 else:
-                    assert len(variables) == 1, line
-                    mention.append({'var':variables[0], 'span':(st,ed), 'turn_id':len(conv)})
-            else:
-                turn.append(tok)
-        conv.append(turn)
+                    turn.append(tok)
+            conv.append(turn)
+    if len(conv) > 0:
+        data.append({'conv':conv, 'sentiment':sentiment, 'mention':mention})
+    return data
 
+
+def load_and_extract_features(path, tokenizer, tok2word_strategy, task, portion="all"):
+    data = load_data(path)
     num_conv, num_sentence, num_mntn = 0.0, 0.0, 0.0
     num_senti, num_senti_cross, num_senti_pos, num_senti_neu, num_senti_neg = 0.0, 0.0, 0.0, 0.0, 0.0
     for instance in data:
@@ -263,13 +271,14 @@ def make_batch_sentiment(features, batch_size, is_sort=True, is_shuffle=False):
     while N < len(features):
         B = min(batch_size, len(features)-N)
         batch, maxseq, maxwordseq, maxwordlen = make_batch_unified(features, B, N)
-        input_tags = np.zeros([B, maxwordseq], dtype=np.long)
-        for i in range(0, B):
-            curwordseq = len(features[N+i]['input_tok2word'])
-            input_tags[i,:curwordseq] = features[N+i]['input_tags']
-        batch['input_tags'] = torch.tensor(input_tags, dtype=torch.long)
-        batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
         batch['turn'] = [features[N+i]['turn'] for i in range(0, B)]
+        if features[N]['input_tags'] != None:
+            input_tags = np.zeros([B, maxwordseq], dtype=np.long)
+            for i in range(0, B):
+                curwordseq = len(features[N+i]['input_tok2word'])
+                input_tags[i,:curwordseq] = features[N+i]['input_tags']
+            batch['input_tags'] = torch.tensor(input_tags, dtype=torch.long)
+            batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
         batches.append(batch)
         N += B
     return batches
@@ -295,19 +304,21 @@ def make_batch_mention(features, batch_size, is_sort=True, is_shuffle=False):
             input_senti_mask[i,:curwordseq] = features[N+i]['input_senti_mask']
             curcontent = features[N+i]['input_content_bound']
             input_content_mask[i,:curcontent] = [1.0,]*curcontent
-            ref_num = len(features[N+i]['input_ref'])
-            assert ref_num > 0
-            for st, ed in features[N+i]['input_ref']:
-                input_ref[i,st,0] = 1.0/ref_num
-                input_ref[i,ed,1] = 1.0/ref_num
+            if features[N]['input_ref'] != None:
+                ref_num = len(features[N+i]['input_ref'])
+                assert ref_num > 0
+                for st, ed in features[N+i]['input_ref']:
+                    input_ref[i,st,0] = 1.0/ref_num
+                    input_ref[i,ed,1] = 1.0/ref_num
         batch['input_sentid'] = torch.tensor(input_sentid, dtype=torch.float)
         batch['input_senti_mask'] = torch.tensor(input_senti_mask, dtype=torch.float)
         batch['input_content_mask'] = torch.tensor(input_content_mask, dtype=torch.float)
-        batch['input_ref'] = torch.tensor(input_ref, dtype=torch.float)
-        batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
         batch['all_lex'] = [features[N+i]['all_lex'] for i in range(0, B)]
         batch['senti_lex'] = [features[N+i]['senti_lex'] for i in range(0, B)]
-        batch['is_cross'] = [features[N+i]['is_cross'] for i in range(0, B)]
+        if features[N]['input_ref'] != None:
+            batch['input_ref'] = torch.tensor(input_ref, dtype=torch.float)
+            batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
+            batch['is_cross'] = [features[N+i]['is_cross'] for i in range(0, B)]
         batches.append(batch)
         N += B
     return batches

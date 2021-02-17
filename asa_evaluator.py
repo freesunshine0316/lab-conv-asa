@@ -23,11 +23,10 @@ def extract_sentiment_from_tags(tag_ids):
     st = -1
     for i, tid in enumerate(tag_ids):
         if asa_datastream.is_tag_begin(tid):
-            cur_senti = asa_datastream.check_tag_sentiment(tid)
             if st != -1:
                 assert prev_senti != None
                 sentiments.append((st, i-1, prev_senti))
-            prev_senti = cur_senti
+            prev_senti = asa_datastream.check_tag_sentiment(tid)
             st = i
         elif asa_datastream.is_tag_inner(tid):
             cur_senti = asa_datastream.check_tag_sentiment(tid)
@@ -39,7 +38,6 @@ def extract_sentiment_from_tags(tag_ids):
                 st = i
             # Neu-B Neu-I or Neu-I Neu-I
         else:
-            assert tid == 0
             if st != -1:
                 assert prev_senti != None
                 sentiments.append((st, i-1, prev_senti))
@@ -57,15 +55,6 @@ def calc_f1(n_out, n_ref, n_both):
     rc = n_both/n_ref if n_ref > 0.0 else 0.0
     f1 = 2.0*pr*rc/(pr+rc) if pr > 0.0 and rc > 0.0 else 0.0
     return pr, rc, f1
-
-
-# TODO: make consumable data from raw input
-def make_data(conversation, tokenizer):
-    data = {'sentences': [], # [batch, wordseq]
-            'sentences_bert_idxs': [], # [batch, wordseq, wordlen]
-            'sentences_bert_toks': [], # [batch, seq]
-            'zp_info': []} # [a sequence of ...]
-    return data
 
 
 def predict_sentiment(model, batches, verbose=0):
@@ -104,10 +93,13 @@ def predict_sentiment(model, batches, verbose=0):
                 print(' '.join('{}({})'.format(TAGS[x],j) for j, x in enumerate(tag_ids[:wordseq_len])))
                 print('===========')
     model.train()
-    f1 = calc_f1(n_prd, n_ref, n_both)
-    f1_un = calc_f1(n_prd, n_ref, n_both_un)
-    print('F1 {}, n_prd {}, n_ref {}, n_both {}; F1-un {}'.format(f1, n_prd, n_ref, n_both, f1_un))
-    return {'loss':loss, 'predictions':predictions, 'score':f1, 'score_un':f1_un, 'accu':n_right/n_total}
+    if batches[0]['refs'] is not None:
+        f1 = calc_f1(n_prd, n_ref, n_both)
+        f1_un = calc_f1(n_prd, n_ref, n_both_un)
+        print('F1 {}, n_prd {}, n_ref {}, n_both {}; F1-un {}'.format(f1, n_prd, n_ref, n_both, f1_un))
+        return {'loss':loss, 'predictions':predictions, 'score':f1, 'score_un':f1_un, 'accu':n_right/n_total}
+    else:
+        return {'predictions':predictions}
 
 
 def predict_mention(model, batches, verbose=0):
@@ -154,7 +146,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--prefix_path', type=str, required=True, help='Prefix path to the saved model')
     parser.add_argument('--in_path', type=str, default=None, help='Path to the input file.')
-    parser.add_argument('--out_path', type=str, default=None, help='Path to the output file.')
     args, unparsed = parser.parse_known_args()
     FLAGS = config_utils.load_config(args.prefix_path + ".config.json")
 
