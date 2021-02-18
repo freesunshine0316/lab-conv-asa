@@ -4,7 +4,8 @@ import argparse
 import numpy as np
 import time
 import random
-from collections import defaultdict(list)
+import string
+from collections import defaultdict
 
 import torch
 import torch.nn as nn
@@ -18,16 +19,18 @@ from asa_datastream import TAGS
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 
 
-def decode_dialogue(FLAGS, device, dialogue, sentiment_model, mention_model):
+def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer):
     print('Dialogue length : {}'.format(len(dialogue['conv'])))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    CLS_ID, SEP_ID = tokenizer.convert_tokens_to_ids(['[CLS]', '[SEP]'])
 
     # decode sentiment
     features = []
     for i, turn in enumerate(dialogue['conv']):
-        cur_ids, cur_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
+        cur_ids, cur_tok2word = asa_datastream.bert_tokenize(turn, tokenizer, args.tok2word_strategy) # [tok_seq], [word_seq, word_len]
         features.append({'input_ids':cur_ids, 'input_tok2word':cur_tok2word,
                 'input_tags':None, 'refs':None, 'turn':None})
-    batches = asa_datastream.make_batch(features, 'sentiment', FLAGS.batch_size, is_sort=False, is_shuffle=False)
+    batches = asa_datastream.make_batch(features, 'sentiment', args.batch_size, is_sort=False, is_shuffle=False)
 
     sentiments = defaultdict(list)
     turn_id = 0
@@ -52,7 +55,7 @@ def decode_dialogue(FLAGS, device, dialogue, sentiment_model, mention_model):
     all_lex = []
     all_sentid = [] # start from 1 to avoid padding 0s
     for i, turn in enumerate(dialogue['conv']):
-        cur_ids, cur_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
+        cur_ids, cur_tok2word = asa_datastream.bert_tokenize(turn, tokenizer, args.tok2word_strategy) # [tok_seq], [word_seq, word_len]
         asa_datastream.merge(all_ids, all_tok2word, cur_ids, cur_tok2word)
         all_offsets.append(len(all_tok2word))
         all_lex.extend(turn)
@@ -66,8 +69,8 @@ def decode_dialogue(FLAGS, device, dialogue, sentiment_model, mention_model):
             input_content_bound = len(all_tok2word)-1
             # ADD w_{s_j}^1, ..., w_{s_j}^{|s_j|}
             senti_st, senti_ed = senti['span'] # [st, ed]
-            senti_ids, senti_tok2word = bert_tokenize(turn[senti_st:senti_ed+1], tokenizer, tok2word_strategy)
-            merge(input_ids, input_tok2word, senti_ids, senti_tok2word)
+            senti_ids, senti_tok2word = asa_datastream.bert_tokenize(turn[senti_st:senti_ed+1], tokenizer, args.tok2word_strategy)
+            asa_datastream.merge(input_ids, input_tok2word, senti_ids, senti_tok2word)
             input_sentid.extend([i+3 for _ in senti_tok2word])
             input_senti_mask.extend([1.0 for _ in senti_tok2word])
             # ADD [CLS]
@@ -79,15 +82,15 @@ def decode_dialogue(FLAGS, device, dialogue, sentiment_model, mention_model):
             features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_sentid':input_sentid,
                 'input_senti_mask':input_senti_mask, 'input_content_bound':input_content_bound, 'input_ref':None,
                 'refs':None, 'all_lex':all_lex, 'senti_lex':senti_lex, 'is_cross':None})
-    batches = asa_datastream.make_batch(features, 'mention', FLAGS.batch_size, is_sort=False, is_shuffle=False)
+    batches = asa_datastream.make_batch(features, 'mention', args.batch_size, is_sort=False, is_shuffle=False)
     assert len(features) == n_senti
 
     mentions = []
     for step, ori_batch in enumerate(batches):
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
-        batch_outputs = model(batch)
-        batch_wordseq_maxlen = step_outputs['wordseq_num']
-        for i, x in enumerate(step_outputs['predictions'].cpu().tolist()):
+        batch_outputs = mention_model(batch)
+        batch_wordseq_maxlen = batch_outputs['wordseq_num']
+        for i, x in enumerate(batch_outputs['predictions'].cpu().tolist()):
             st = x // batch_wordseq_maxlen
             ed = x % batch_wordseq_maxlen
             turn_id = 0
@@ -100,7 +103,7 @@ def decode_dialogue(FLAGS, device, dialogue, sentiment_model, mention_model):
     assert len(mentions) == n_senti
 
     sentiments_list = []
-    for i in len(dialogue['conv']):
+    for i in range(len(dialogue['conv'])):
         sentiments_list.extend(sentiments[i])
     assert len(sentiments_list) == n_senti
 
@@ -139,7 +142,7 @@ def merge_results(dialogue, sentiments, mentions):
 
         var = varlist[vid]
         dialogue['casa_res'][senti_tid][senti_st] = '[{}'.format(var)
-        dialogue['casa_res'][senti_tid][senti_ed] = '{}||{}]'.format()
+        dialogue['casa_res'][senti_tid][senti_ed] = '{}||{}]'.format(senti_x, var)
 
         if dialogue['casa_res'][mentn_tid][mentn_st] == '':
             dialogue['casa_res'][mentn_tid][mentn_st] = '[{}'.format(var)
@@ -153,41 +156,43 @@ def merge_results(dialogue, sentiments, mentions):
 
     turns_with_casa = []
     for turn, casa in zip(dialogue['conv'], dialogue['casa_res']):
-        twc = [casa[j] + ' ' + turn[j] if casa[j] != '' else turn[j] for j in len(turn)]
+        twc = ' '.join(casa[j] + ' ' + turn[j] if casa[j] != '' else turn[j] for j in range(len(turn)))
         turns_with_casa.append(twc)
     return '\n'.join(turns_with_casa)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--prefix_path', type=str, required=True, help='Prefix path to the saved model')
+    parser.add_argument('--batch_size', type=int, required=True, help='Should be consistent with training')
+    parser.add_argument('--cuda_device', type=str, required=True, help='GPU ids (e.g. "1" or "1,2")')
+    parser.add_argument('--bert_version', type=str, required=True, help='BERT version (e.g. "bert-base-chinese"')
+    parser.add_argument('--tok2word_strategy', type=str, required=True, help='Should be consistent with training, e.g. avg')
     parser.add_argument('--mention_model_path', type=str, required=True, help='The saved mention model')
     parser.add_argument('--sentiment_model_path', type=str, required=True, help='The saved sentiment model')
-    parser.add_argument('--in_path', type=str, default=None, help='Path to the input file.')
-    parser.add_argument('--out_path', type=str, default=None, help='Path to the output file.')
+    parser.add_argument('--in_path', type=str, default=None, help='Path to the input file')
+    parser.add_argument('--out_path', type=str, default=None, help='Path to the output file')
     args, unparsed = parser.parse_known_args()
-    FLAGS = config_utils.load_config(args.prefix_path + ".config.json")
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.cuda_device
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_device
     print("CUDA_VISIBLE_DEVICES " + os.environ['CUDA_VISIBLE_DEVICES'])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_gpu = torch.cuda.device_count()
     print('device: {}, n_gpu: {}'.format(device, n_gpu))
 
-    tokenizer = None
-    if 'bert' in FLAGS.pretrained_path:
-        tokenizer = BertTokenizer.from_pretrained(FLAGS.pretrained_path)
+    tokenizer = BertTokenizer.from_pretrained(args.bert_version)
 
     print('Compiling model')
-    mention_model = asa_model.BertAsaMe.from_pretrained(FLAGS.pretrained_path)
+    mention_model = asa_model.BertAsaMe.from_pretrained(args.bert_version)
     mention_model.load_state_dict(torch.load(args.mention_model_path))
     mention_model.to(device)
+    mention_model.eval()
 
-    sentiment_model = asa_model.BertAsaSe.from_pretrained(FLAGS.pretrained_path)
+    sentiment_model = asa_model.BertAsaSe.from_pretrained(args.bert_version)
     sentiment_model.load_state_dict(torch.load(args.sentiment_model_path))
     sentiment_model.to(device)
+    sentiment_model.eval()
 
     print('Loading data')
     data = asa_datastream.load_data(args.in_path)
@@ -196,7 +201,9 @@ if __name__ == '__main__':
     print('Decoding')
     f = open(args.out_path, 'w')
     for dialogue in data:
-        sentiments, mentions = decode_dialogue(FLAGS, device, dialogue, sentiment_model, mention_model)
-        output_dialogue(f
+        sentiments, mentions = decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer)
+        outputs = merge_results(dialogue, sentiments, mentions)
+        f.write(outputs+'\n\n')
+    f.close()
 
 

@@ -36,7 +36,7 @@ def is_int(s):
         return False
 
 
-def load_data(path)
+def load_data(path):
     data = []
     conv, sentiment, mention = [], [], []
     for i, line in enumerate(open(path, 'r')):
@@ -279,6 +279,9 @@ def make_batch_sentiment(features, batch_size, is_sort=True, is_shuffle=False):
                 input_tags[i,:curwordseq] = features[N+i]['input_tags']
             batch['input_tags'] = torch.tensor(input_tags, dtype=torch.long)
             batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
+        else:
+            batch['input_tags'] = None
+            batch['refs'] = None
         batches.append(batch)
         N += B
     return batches
@@ -319,6 +322,10 @@ def make_batch_mention(features, batch_size, is_sort=True, is_shuffle=False):
             batch['input_ref'] = torch.tensor(input_ref, dtype=torch.float)
             batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]
             batch['is_cross'] = [features[N+i]['is_cross'] for i in range(0, B)]
+        else:
+            batch['input_ref'] = None
+            batch['refs'] = None
+            batch['is_cross'] = None
         batches.append(batch)
         N += B
     return batches
