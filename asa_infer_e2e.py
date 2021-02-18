@@ -182,7 +182,7 @@ if __name__ == '__main__':
     parser.add_argument('--sentiment_model_path', type=str, required=True, help='The saved sentiment model')
     parser.add_argument('--in_path', type=str, required=True, help='Path to the input file')
     parser.add_argument('--out_path', type=str, required=True, help='Path to the output file')
-    parser.add_argument('--out_format', type=str, choices=['anno_json', 'full_text'] help='Format of outputs')
+    parser.add_argument('--out_format', type=str, choices=['casa_json','full_text'], help='Format of outputs')
     args, unparsed = parser.parse_known_args()
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -215,10 +215,10 @@ if __name__ == '__main__':
     for dialogue in data:
         sentiments, mentions = decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer)
         if args.out_format == 'full_text':
-            outputs = gen_string_results(dialogue, sentiments, mentions)
+            outputs = gen_string_results(dialogue, sentiments, mentions) + '\n'
         else:
             outputs = json.dumps({'sentiments':sentiments,'mentions':mentions})
-        f.write(results+'\n\n')
+        f.write(outputs+'\n')
     f.close()
 
 
