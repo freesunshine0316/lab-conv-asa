@@ -110,13 +110,13 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer):
     return sentiments_list, mentions
 
 
-def merge_results(dialogue, sentiments, mentions):
-    dialogue['casa_st'] = []
-    dialogue['casa_ed'] = []
+def gen_string_results(dialogue, sentiments, mentions):
+    dialogue_casa_st = []
+    dialogue_casa_ed = []
     senti_occupy = []
     for i in range(len(dialogue['conv'])):
-        dialogue['casa_st'].append(['',]*len(dialogue['conv'][i]))
-        dialogue['casa_ed'].append(['',]*len(dialogue['conv'][i]))
+        dialogue_casa_st.append(['',]*len(dialogue['conv'][i]))
+        dialogue_casa_ed.append(['',]*len(dialogue['conv'][i]))
         senti_occupy.append([False,]*len(dialogue['conv'][i]))
 
     for senti in sentiments:
@@ -144,21 +144,21 @@ def merge_results(dialogue, sentiments, mentions):
 
         var = varlist[vid]
         vid += 1
-        dialogue['casa_st'][senti_tid][senti_st] = '[{}'.format(var)
-        dialogue['casa_ed'][senti_tid][senti_ed] = '{}##{}]'.format(senti_x, var)
+        dialogue_casa_st[senti_tid][senti_st] = '[{}'.format(var)
+        dialogue_casa_ed[senti_tid][senti_ed] = '{}##{}]'.format(senti_x, var)
 
-        if dialogue['casa_st'][mentn_tid][mentn_st] == '':
-            dialogue['casa_st'][mentn_tid][mentn_st] = '[{}'.format(var)
+        if dialogue_casa_st[mentn_tid][mentn_st] == '':
+            dialogue_casa_st[mentn_tid][mentn_st] = '[{}'.format(var)
         else:
-            dialogue['casa_st'][mentn_tid][mentn_st] = dialogue['casa_st'][mentn_tid][mentn_st] + '+{}'.format(var)
+            dialogue_casa_st[mentn_tid][mentn_st] = dialogue_casa_st[mentn_tid][mentn_st] + '+{}'.format(var)
 
-        if dialogue['casa_ed'][mentn_tid][mentn_ed] == '':
-            dialogue['casa_ed'][mentn_tid][mentn_ed] = '{}]'.format(var)
+        if dialogue_casa_ed[mentn_tid][mentn_ed] == '':
+            dialogue_casa_ed[mentn_tid][mentn_ed] = '{}]'.format(var)
         else:
-            dialogue['casa_ed'][mentn_tid][mentn_ed] = '{}+'.format(var) + dialogue['casa_ed'][mentn_tid][mentn_ed]
+            dialogue_casa_ed[mentn_tid][mentn_ed] = '{}+'.format(var) + dialogue_casa_ed[mentn_tid][mentn_ed]
 
     turns_with_casa = []
-    for case_st, turn, casa_ed in zip(dialogue['casa_st'], dialogue['conv'], dialogue['casa_ed']):
+    for case_st, turn, casa_ed in zip(dialogue_casa_st, dialogue['conv'], dialogue_casa_ed):
         twc = []
         for st, x, ed in zip(case_st, turn, casa_ed):
             if st == '' and ed == '':
@@ -180,8 +180,9 @@ if __name__ == '__main__':
     parser.add_argument('--tok2word_strategy', type=str, required=True, help='Should be consistent with training, e.g. avg')
     parser.add_argument('--mention_model_path', type=str, required=True, help='The saved mention model')
     parser.add_argument('--sentiment_model_path', type=str, required=True, help='The saved sentiment model')
-    parser.add_argument('--in_path', type=str, default=None, help='Path to the input file')
-    parser.add_argument('--out_path', type=str, default=None, help='Path to the output file')
+    parser.add_argument('--in_path', type=str, required=True, help='Path to the input file')
+    parser.add_argument('--out_path', type=str, required=True, help='Path to the output file')
+    parser.add_argument('--out_format', type=str, choices=['anno_json', 'full_text'] help='Format of outputs')
     args, unparsed = parser.parse_known_args()
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -213,8 +214,11 @@ if __name__ == '__main__':
     f = open(args.out_path, 'w')
     for dialogue in data:
         sentiments, mentions = decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer)
-        outputs = merge_results(dialogue, sentiments, mentions)
-        f.write(outputs+'\n\n')
+        if args.out_format == 'full_text':
+            outputs = gen_string_results(dialogue, sentiments, mentions)
+        else:
+            outputs = json.dumps({'sentiments':sentiments,'mentions':mentions})
+        f.write(results+'\n\n')
     f.close()
 
 
