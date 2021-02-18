@@ -111,10 +111,12 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer):
 
 
 def merge_results(dialogue, sentiments, mentions):
-    dialogue['casa_res'] = []
+    dialogue['casa_st'] = []
+    dialogue['casa_ed'] = []
     senti_occupy = []
     for i in range(len(dialogue['conv'])):
-        dialogue['casa_res'].append(['',]*len(dialogue['conv'][i]))
+        dialogue['casa_st'].append(['',]*len(dialogue['conv'][i]))
+        dialogue['casa_ed'].append(['',]*len(dialogue['conv'][i]))
         senti_occupy.append([False,]*len(dialogue['conv'][i]))
 
     for senti in sentiments:
@@ -141,18 +143,18 @@ def merge_results(dialogue, sentiments, mentions):
             continue
 
         var = varlist[vid]
-        dialogue['casa_res'][senti_tid][senti_st] = '[{}'.format(var)
-        dialogue['casa_res'][senti_tid][senti_ed] = '{}||{}]'.format(senti_x, var)
+        dialogue['casa_st'][senti_tid][senti_st] = '[{}'.format(var)
+        dialogue['casa_ed'][senti_tid][senti_ed] = '{}||{}]'.format(senti_x, var)
 
-        if dialogue['casa_res'][mentn_tid][mentn_st] == '':
-            dialogue['casa_res'][mentn_tid][mentn_st] = '[{}'.format(var)
+        if dialogue['casa_st'][mentn_tid][mentn_st] == '':
+            dialogue['casa_st'][mentn_tid][mentn_st] = '[{}'.format(var)
         else:
-            dialogue['casa_res'][mentn_tid][mentn_st] = dialogue['casa_res'][mentn_tid][mentn_st] + '+{}'.format(var)
+            dialogue['casa_st'][mentn_tid][mentn_st] = dialogue['casa_st'][mentn_tid][mentn_st] + '+{}'.format(var)
 
-        if dialogue['casa_res'][mentn_tid][mentn_ed] == '':
-            dialogue['casa_res'][mentn_tid][mentn_ed] = '{}]'.format(var)
+        if dialogue['casa_ed'][mentn_tid][mentn_ed] == '':
+            dialogue['casa_ed'][mentn_tid][mentn_ed] = '{}]'.format(var)
         else:
-            dialogue['casa_res'][mentn_tid][mentn_ed] = '{}+'.format(var) + dialogue['casa_res'][mentn_tid][mentn_st]
+            dialogue['casa_ed'][mentn_tid][mentn_ed] = '{}+'.format(var) + dialogue['casa_ed'][mentn_tid][mentn_st]
 
     turns_with_casa = []
     for turn, casa in zip(dialogue['conv'], dialogue['casa_res']):
