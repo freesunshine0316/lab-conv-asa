@@ -141,6 +141,7 @@ def merge_results(dialogue, sentiments, mentions):
             continue
 
         var = varlist[vid]
+        vid += 1
         dialogue['casa_res'][senti_tid][senti_st] = '[{}'.format(var)
         dialogue['casa_res'][senti_tid][senti_ed] = '{}||{}]'.format(senti_x, var)
 
@@ -156,8 +157,14 @@ def merge_results(dialogue, sentiments, mentions):
 
     turns_with_casa = []
     for turn, casa in zip(dialogue['conv'], dialogue['casa_res']):
-        twc = ' '.join(casa[j] + ' ' + turn[j] if casa[j] != '' else turn[j] for j in range(len(turn)))
-        turns_with_casa.append(twc)
+        twc = []
+        for x, y in zip(turn, casa):
+            if y == '':
+                twc.append(x)
+            else:
+                tmp = [y,x] if y[0] == '[' else [x,y]
+                twc.append(' '.join(tmp))
+        turns_with_casa.append(' '.join(twc))
     return '\n'.join(turns_with_casa)
 
 
