@@ -145,7 +145,7 @@ def merge_results(dialogue, sentiments, mentions):
         var = varlist[vid]
         vid += 1
         dialogue['casa_st'][senti_tid][senti_st] = '[{}'.format(var)
-        dialogue['casa_ed'][senti_tid][senti_ed] = '{}||{}]'.format(senti_x, var)
+        dialogue['casa_ed'][senti_tid][senti_ed] = '{}##{}]'.format(senti_x, var)
 
         if dialogue['casa_st'][mentn_tid][mentn_st] == '':
             dialogue['casa_st'][mentn_tid][mentn_st] = '[{}'.format(var)
@@ -155,16 +155,16 @@ def merge_results(dialogue, sentiments, mentions):
         if dialogue['casa_ed'][mentn_tid][mentn_ed] == '':
             dialogue['casa_ed'][mentn_tid][mentn_ed] = '{}]'.format(var)
         else:
-            dialogue['casa_ed'][mentn_tid][mentn_ed] = '{}+'.format(var) + dialogue['casa_ed'][mentn_tid][mentn_st]
+            dialogue['casa_ed'][mentn_tid][mentn_ed] = '{}+'.format(var) + dialogue['casa_ed'][mentn_tid][mentn_ed]
 
     turns_with_casa = []
-    for case_st, turn, casa_ed in zip(dialogue['case_st'], dialogue['conv'], dialogue['casa_ed']):
+    for case_st, turn, casa_ed in zip(dialogue['casa_st'], dialogue['conv'], dialogue['casa_ed']):
         twc = []
         for st, x, ed in zip(case_st, turn, casa_ed):
             if st == '' and ed == '':
                 twc.append(x)
             elif st != '' and ed != '':
-                twc.append(' '.join([st,x,y]))
+                twc.append(' '.join([st,x,ed]))
             else:
                 tmp = [st,x] if ed == '' else [x,ed]
                 twc.append(' '.join(tmp))
