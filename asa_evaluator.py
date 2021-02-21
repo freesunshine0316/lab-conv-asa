@@ -180,6 +180,12 @@ if __name__ == '__main__':
         model = asa_model.BertAsaSe.from_pretrained(FLAGS.pretrained_path)
     else:
         assert False, 'Unsupported task: ' + FLAGS.task
+
+    if FLAGS.freeze_bert:
+        model.freeze_bert()
+    elif FLAGS.use_embedding:
+        model.setup_embedding(tokenizer.vocab_size)
+
     model.load_state_dict(torch.load(args.prefix_path + ".bert_model.bin"))#, map_location='cpu'))
     model.to(device)
 

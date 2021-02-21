@@ -63,9 +63,7 @@ def main():
     print('device: {}, n_gpu: {}, grad_accum_steps: {}'.format(device, n_gpu, FLAGS.grad_accum_steps))
     log_file.write('device: {}, n_gpu: {}, grad_accum_steps: {}\n'.format(device, n_gpu, FLAGS.grad_accum_steps))
 
-    tokenizer = None
-    if 'bert' in FLAGS.pretrained_path:
-        tokenizer = BertTokenizer.from_pretrained(FLAGS.pretrained_path)
+    tokenizer = BertTokenizer.from_pretrained(FLAGS.pretrained_path)
 
     # load data and make_batches
     print('Loading data and making batches')
@@ -97,6 +95,12 @@ def main():
         model = asa_model.BertAsaSe.from_pretrained(FLAGS.pretrained_path)
     else:
         assert False, 'Unsupported task: ' + FLAGS.task
+
+    if FLAGS.freeze_bert:
+        model.freeze_bert()
+    elif FLAGS.use_embedding:
+        model.setup_embedding(tokenizer.vocab_size)
+
     if os.path.exists(path_prefix + ".bert_model.bin"):
         print('!!Existing pretrained model. Loading the model...')
         model.load_state_dict(torch.load(path_prefix + ".bert_model.bin"))
@@ -172,9 +176,9 @@ def main():
             config_utils.save_config(FLAGS, path_prefix + ".config.json")
         print('-------------')
         log_file.write('-------------\n')
-        #dev_eval(model, test_batches, log_file)
-        #print('=============')
-        #log_file.write('=============\n')
+        dev_eval(model, test_batches, log_file)
+        print('=============')
+        log_file.write('=============\n')
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         finished_epochs += 1

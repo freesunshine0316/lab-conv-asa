@@ -4,9 +4,11 @@
     "test_path": "data/duconv_test.txt",
     "task": "mention",
     "log_dir": "logs",
-    "suffix": "me_bert_cross",
+    "suffix": "me_bert",
     "pretrained_path": "bert-base-chinese",
-    "train_portion": "cross",
+    "freeze_bert":true,
+    "use_embedding":true,
+    "train_portion": "all",
 
     "is_shuffle": false,
     "is_sort": true,

@@ -11,6 +11,7 @@ from tencent_transformer import MultiheadAttention, TransformerEncoderLayer
 class BertAsaSe(BertPreTrainedModel):
     def __init__(self, config):
         super(BertAsaSe, self).__init__(config)
+        self.embed = None
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.encoder = nn.ModuleList([TransformerEncoderLayer(config.hidden_size, 8, dim_feedforward=256) \
@@ -20,10 +21,22 @@ class BertAsaSe(BertPreTrainedModel):
                 nn.ReLU(), nn.Linear(384, self.label_num))
 
 
+    def freeze_bert(self):
+        for param in self.bert.parameters():
+            param.requires_grad = False
+
+
+    def setup_embedding(self, vocab_size):
+        self.embed = nn.Embedding(vocab_size, 768)
+
+
     def forward(self, batch):
-        # bert encoding
-        tok_repre, _ = self.bert(batch['input_ids'], None, batch['input_mask'], output_all_encoded_layers=False)
-        tok_repre = self.dropout(tok_repre) # [batch, seq, dim]
+        # embedding
+        if self.embed is None:
+            tok_repre, _ = self.bert(batch['input_ids'], None, batch['input_mask'], output_all_encoded_layers=False)
+            tok_repre = self.dropout(tok_repre) # [batch, seq, dim]
+        else:
+            tok_repre = self.embed(batch['input_ids']) # [batch, seq, dim]
 
         # cast from tok-level to word-level
         word_repre = gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
@@ -59,6 +72,7 @@ class BertAsaSe(BertPreTrainedModel):
 class BertAsaMe(BertPreTrainedModel):
     def __init__(self, config):
         super(BertAsaMe, self).__init__(config)
+        self.embed = None
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         hidden_size = config.hidden_size
@@ -66,10 +80,22 @@ class BertAsaMe(BertPreTrainedModel):
         self.ed_classifier = AdditiveAttention(hidden_size, hidden_size, 384)
 
 
+    def freeze_bert(self):
+        for param in self.bert.parameters():
+            param.requires_grad = False
+
+
+    def setup_embedding(self, vocab_size):
+        self.embed = nn.Embedding(vocab_size, 768)
+
+
     def forward(self, batch):
-        # bert encoding
-        tok_repre, _ = self.bert(batch['input_ids'], None, batch['input_mask'], output_all_encoded_layers=False)
-        tok_repre = self.dropout(tok_repre) # [batch, seq, dim]
+        # embedding
+        if self.embed == None:
+            tok_repre, _ = self.bert(batch['input_ids'], None, batch['input_mask'], output_all_encoded_layers=False)
+            tok_repre = self.dropout(tok_repre) # [batch, seq, dim]
+        else:
+            tok_repre = self.embed(batch['input_ids'])
 
         # cast from tok-level to word-level
         word_repre = gather_tok2word(tok_repre, batch['input_tok2word'], batch['input_tok2word_mask']) # [batch, wordseq, dim]
