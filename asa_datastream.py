@@ -110,7 +110,7 @@ def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
         if word in ('A:', 'B:'):
             toks = ['<S>',] if word == 'A:' else ['<T>',]
         else:
-            toks = [x if x in tokenizer.vocab else '[UNK]' for x in tokenizer.tokenize(word)]
+            toks = [x if x in tokenizer.vocab else tokenizer.unk_token for x in tokenizer.tokenize(word)]
         assert len(toks) > 0
         idxs = tokenizer.convert_tokens_to_ids(toks)
         input_ids.extend(idxs)

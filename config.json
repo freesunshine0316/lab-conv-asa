@@ -1,12 +1,12 @@
 {
-    "train_path": "data/duconv.txt",
+    "train_path": "data/duconv_train.txt",
     "dev_path": "data/duconv_dev.txt",
     "test_path": "data/duconv_test.txt",
     "task": "mention",
     "log_dir": "logs",
-    "suffix": "me_bert",
+    "suffix": "me_embed",
     "pretrained_path": "bert-base-chinese",
-    "freeze_bert":true,
+    "freeze_bert":false,
     "use_embedding":true,
     "train_portion": "all",
 
@@ -23,5 +23,5 @@
 
     "tok2word_strategy": "avg",
     
-    "cuda_device": "6"
+    "cuda_device": "5"
 }

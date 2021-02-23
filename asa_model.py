@@ -89,10 +89,28 @@ class BertAsaMe(BertPreTrainedModel):
         self.embed = nn.Embedding(vocab_size, 768)
 
 
+    def get_bert_embedding(self, batch):
+        tokseq_num = batch['input_ids'].shape[1]
+        if tokseq_num > 512:
+            tok_repre = []
+            st = 0
+            while st < tokseq_num:
+                ed = min(tokseq_num, st+512)
+                cur_ids = batch['input_ids'][:,st:ed]
+                cur_mask = batch['input_mask'][:,st:ed]
+                cur_tok_repre, _ = self.bert(cur_ids, None, cur_mask, output_all_encoded_layers=False)
+                tok_repre.append(cur_tok_repre)
+                st = ed
+            tok_repre = torch.cat(tok_repre, dim=1)
+        else:
+            tok_repre, _ = self.bert(batch['input_ids'], None, batch['input_mask'], output_all_encoded_layers=False)
+        return tok_repre
+
+
     def forward(self, batch):
         # embedding
         if self.embed == None:
-            tok_repre, _ = self.bert(batch['input_ids'], None, batch['input_mask'], output_all_encoded_layers=False)
+            tok_repre = self.get_bert_embedding(batch) # [batch, seq, dim]
             tok_repre = self.dropout(tok_repre) # [batch, seq, dim]
         else:
             tok_repre = self.embed(batch['input_ids'])

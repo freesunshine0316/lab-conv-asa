@@ -42,7 +42,8 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer):
             wordseq_len = batch_wordseq_lengths[i]
             for senti in asa_evaluator.extract_sentiment_from_tags(tag_ids[:wordseq_len]):
                 st, ed, x = senti
-                sentiments[turn_id].append({'variables':None, 'turn_id':turn_id, 'span':(st,ed), 'senti':x})
+                if ed - st <= 6:
+                    sentiments[turn_id].append({'variables':None, 'turn_id':turn_id, 'span':(st,ed), 'senti':x})
             turn_id += 1
     assert len(dialogue['conv']) == turn_id
     n_senti = sum(len(x) for x in sentiments.values())
@@ -70,6 +71,7 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer):
             # ADD w_{s_j}^1, ..., w_{s_j}^{|s_j|}
             senti_st, senti_ed = senti['span'] # [st, ed]
             senti_ids, senti_tok2word = asa_datastream.bert_tokenize(turn[senti_st:senti_ed+1], tokenizer, args.tok2word_strategy)
+            #print('all_ids {}, senti_ids {}'.format(len(all_ids), len(senti_ids)))
             asa_datastream.merge(input_ids, input_tok2word, senti_ids, senti_tok2word)
             input_sentid.extend([i+3 for _ in senti_tok2word])
             input_senti_mask.extend([1.0 for _ in senti_tok2word])
@@ -185,6 +187,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_format', type=str, choices=['casa_json','full_text'], help='Format of outputs')
     args, unparsed = parser.parse_known_args()
 
+    os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_device
     print("CUDA_VISIBLE_DEVICES " + os.environ['CUDA_VISIBLE_DEVICES'])
@@ -213,6 +216,38 @@ if __name__ == '__main__':
     print('Decoding')
     f = open(args.out_path, 'w')
     for dialogue in data:
+        ## a stupid solution for handling too-long sentences using BERT
+        #sentiments = []
+        #mentions = []
+        #cur_st = 0
+        #cur_token_num = 0
+        #cur_dialogue = {'conv':[]}
+        #cur_popped_turns = 0
+        #is_full = False
+        #i = 0
+        #while i <= len(dialogue['conv']):
+        #    if is_full == False and i < len(dialogue['conv']):
+        #        turn = dialogue['conv'][i]
+        #        cur_token_num += len(turn)
+        #        cur_dialogue['conv'].append(turn)
+        #        is_full = (cur_token_num >= 200)
+        #        i += 1
+        #    else:
+        #        print('Decoding for Turn [{}, {}), #tokens {}'.format(cur_st, i, cur_token_num))
+        #        cur_sentiments, cur_mentions = decode_dialogue(args,
+        #                dialogue, sentiment_model, mention_model, tokenizer)
+        #        for senti, mentn in zip(cur_sentiments, cur_mentions):
+        #            if cur_popped_turns + senti['turn_id'] >= cur_st:
+        #                sentiments.extend(cur_sentiments)
+        #                mentions.extend(cur_mentions)
+        #        while cur_token_num > 80:
+        #            cur_token_num -= len(cur_dialogue['conv'][0])
+        #            cur_dialogue['conv'].pop(0)
+        #            cur_popped_turns += 1
+        #        if i == len(dialogue['conv']):
+        #            break
+        #        cur_st = i
+        #        is_full = False
         sentiments, mentions = decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer)
         if args.out_format == 'full_text':
             outputs = gen_string_results(dialogue, sentiments, mentions) + '\n'

@@ -142,12 +142,21 @@ def predict_mention(model, batches, verbose=0):
     return {'loss':loss, 'predictions':predictions, 'score':accu}
 
 
+def enrich_flag(FLAGS):
+    if hasattr(FLAGS, 'freeze_bert') == False:
+        FLAGS.freeze_bert = False
+
+    if hasattr(FLAGS, 'use_embedding') == False:
+        FLAGS.use_embedding = False
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--prefix_path', type=str, required=True, help='Prefix path to the saved model')
     parser.add_argument('--in_path', type=str, default=None, help='Path to the input file.')
     args, unparsed = parser.parse_known_args()
     FLAGS = config_utils.load_config(args.prefix_path + ".config.json")
+    enrich_flag(FLAGS)
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.cuda_device
@@ -184,13 +193,13 @@ if __name__ == '__main__':
     if FLAGS.freeze_bert:
         model.freeze_bert()
     elif FLAGS.use_embedding:
-        model.setup_embedding(tokenizer.vocab_size)
+        model.setup_embedding(len(tokenizer.vocab))
 
     model.load_state_dict(torch.load(args.prefix_path + ".bert_model.bin"))#, map_location='cpu'))
     model.to(device)
 
     if FLAGS.task == 'mention':
-        predict_mention(model, batches, verbose=1)
+        predict_mention(model, batches, verbose=0)
     else:
-        predict_sentiment(model, batches, verbose=1)
+        predict_sentiment(model, batches, verbose=0)
 

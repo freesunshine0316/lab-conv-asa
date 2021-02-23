@@ -99,7 +99,7 @@ def main():
     if FLAGS.freeze_bert:
         model.freeze_bert()
     elif FLAGS.use_embedding:
-        model.setup_embedding(tokenizer.vocab_size)
+        model.setup_embedding(len(tokenizer.vocab))
 
     if os.path.exists(path_prefix + ".bert_model.bin"):
         print('!!Existing pretrained model. Loading the model...')
