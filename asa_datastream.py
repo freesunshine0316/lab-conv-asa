@@ -111,7 +111,7 @@ def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
             toks = ['<S>',] if word == 'A:' else ['<T>',]
         else:
             toks = [x if x in tokenizer.vocab else tokenizer.unk_token for x in tokenizer.tokenize(word)]
-        assert len(toks) > 0
+        assert len(toks) > 0, ' '.join(word_seq)
         idxs = tokenizer.convert_tokens_to_ids(toks)
         input_ids.extend(idxs)
         positions = [i + total_offset for i in range(len(idxs))]

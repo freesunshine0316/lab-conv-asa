@@ -215,7 +215,7 @@ if __name__ == '__main__':
 
     print('Decoding')
     f = open(args.out_path, 'w')
-    for dialogue in data:
+    for i, dialogue in enumerate(data):
         ## a stupid solution for handling too-long sentences using BERT
         #sentiments = []
         #mentions = []
