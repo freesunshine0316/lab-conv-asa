@@ -1,18 +1,21 @@
 # -*- coding: utf8 -*-
-import os, sys, json, time
+import os, sys, json, time, argparse
 import requests
 from flask import Flask, request
 from flask_restful import Api, Resource, reqparse
 from server_utils import preprocess_turns
 from flask_cors import CORS
 
+import torch
 import asa_infer_e2e
+import asa_model
+from pytorch_pretrained_bert.tokenization import BertTokenizer
 
 app = Flask(__name__)
 CORS(app)
 api = Api(app)
 
-senti_map = {-1:'negative', 0:'neutral', 1:'positive'}
+polarity_map = {-1:'negative', 0:'neutral', 1:'positive'}
 
 def extract_sentiment(phrases, offset):
     span = []
@@ -49,6 +52,20 @@ class CASAParser(Resource):
     def get(self):
         print("got a get request")
 
+    def put(self):
+        print("got a put request")
+        dialog_list = json.loads(request.form['dialog_list'])
+
+        if dialog_list is None:
+            return {}
+
+        print(dialog_list)
+        phrase_list, result = self.parse(dialog_list)
+        print('{} {}'.format(phrase_list, result))
+
+        response = {"senti_str": json.dumps(result), "phrase_list": phrase_list}
+        return response
+
     def post(self):
         print("getting a post request ....")
         dialog_list = None
@@ -62,7 +79,7 @@ class CASAParser(Resource):
             return {}
 
         phrase_list, result = self.parse(dialog_list)
-        print(result)
+        print('{} {}'.format(phrase_list, result))
 
         response = {"senti_str": json.dumps(result), "phrase_list": phrase_list}
         return response
@@ -82,14 +99,19 @@ class CASAParser(Resource):
 
         # word segment
         utts_as_words, _ = self.texsmart_api(utts)
+        utts = []
         offsets = [0,]
-        for i in range(len(utts_as_words)-1):
-            offsets.append(offsets[-1] + len(utts_as_words[i]))
+        for i in range(len(utts_as_words)):
+            utts.append(" ".join(utts_as_words[i]))
+            if i < len(utts_as_words) - 1:
+                offsets.append(offsets[-1] + len(utts_as_words[i]))
+        assert len(utts) == len(offsets)
+        print(utts)
 
         # call CASA model
         utts_as_words = [['A:',] + x if i%2 == 0 else ['B:',] + x for i, x in enumerate(utts_as_words)]
         dialogue = {'conv': utts_as_words}
-        sentiments, mentions = asa_infer_e2e.decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer)
+        sentiments, mentions = asa_infer_e2e.decode_dialogue(FLAGS, dialogue, sentiment_model, mention_model, tokenizer)
 
         senti_res = []
         for senti, mentn in zip(sentiments, mentions):
@@ -97,14 +119,14 @@ class CASAParser(Resource):
             sst, sed = senti['span']
             sbase = offsets[senti['turn_id']]
             x['senti_span'] = [sst - 1 + sbase, sed - 1 + sbase] # -1 is for omitting the A: or B: in the beginning
-            x['polarity'] = senti['senti']
+            x['polarity'] = polarity_map[senti['senti']]
             mst, med = mentn['span']
             mbase = offsets[mentn['turn_id']]
-            x['mentn_span'] = [mst - 1 + mbaes, med - 1 + mbase]
+            x['mentn_span'] = [mst - 1 + mbase, med - 1 + mbase]
             senti_res.append(x)
 
         if len(senti_res) == 0:
-            return []
+            return [], []
 
         # don't know if that's necessary
         input = "<SEP>".join(utts)
@@ -136,20 +158,6 @@ class CASAParser(Resource):
 
         return words, res
 
-
-    # def put(self):
-    #     print(request)
-    #     segmented_text = request.form['segment'].split()
-    #     if segmented_text == []:
-    #         return {"srl": ""}
-    #
-    #     pred_idx_list = request.form['pred_list'].split()
-    #     pred_idx_list = [int(id) for id in pred_idx_list]
-    #     if pred_idx_list == []:
-    #         return {"srl": ""}
-    #
-    #     return {"srl": str(srl)}
-
     def decode(self, segmented_test):
         pass
 
@@ -163,27 +171,27 @@ if __name__ == '__main__':
     parser.add_argument('--tok2word_strategy', type=str, required=True, help='Should be consistent with training, e.g. avg')
     parser.add_argument('--mention_model_path', type=str, required=True, help='The saved mention model')
     parser.add_argument('--sentiment_model_path', type=str, required=True, help='The saved sentiment model')
-    args, unparsed = parser.parse_known_args()
+    FLAGS, unparsed = parser.parse_known_args()
 
     os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_device
+    os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.cuda_device
     print("CUDA_VISIBLE_DEVICES " + os.environ['CUDA_VISIBLE_DEVICES'])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_gpu = torch.cuda.device_count()
     print('device: {}, n_gpu: {}'.format(device, n_gpu))
 
-    tokenizer = BertTokenizer.from_pretrained(args.bert_version)
+    tokenizer = BertTokenizer.from_pretrained(FLAGS.bert_version)
 
     print('Compiling model')
-    mention_model = asa_model.BertAsaMe.from_pretrained(args.bert_version)
-    mention_model.load_state_dict(torch.load(args.mention_model_path))
+    mention_model = asa_model.BertAsaMe.from_pretrained(FLAGS.bert_version)
+    mention_model.load_state_dict(torch.load(FLAGS.mention_model_path))
     mention_model.to(device)
     mention_model.eval()
 
-    sentiment_model = asa_model.BertAsaSe.from_pretrained(args.bert_version)
-    sentiment_model.load_state_dict(torch.load(args.sentiment_model_path))
+    sentiment_model = asa_model.BertAsaSe.from_pretrained(FLAGS.bert_version)
+    sentiment_model.load_state_dict(torch.load(FLAGS.sentiment_model_path))
     sentiment_model.to(device)
     sentiment_model.eval()
     print('Conversational Aspect Sentiment Analysis service is now available')
