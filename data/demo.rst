@@ -1,98 +1,10 @@
-A: 虽然 [a 美国 的 电影 a] 一向 英雄主义 ， 但是 看起来 还是 [a 很 爽 +1##a] 的 。
-B: 那 是 ， 所以 虽然 我 [b 不 喜欢 -1##b] [b 美国 的 霸权主义 b] ， 但是 我 是 漫威迷 。
-A: 最近 上映 的 那 部 [c 《 神奇 女侠 》 c] 你 看 了 吗 ， 也是 [c 超燃 +1##c] 的 那种 ， 我 [d 好喜欢 +1##d] [d+e+f 女 主 f+e+d] 。
-B: 我 也 [e 好喜欢 +1##e] ， 每天 在 现实 世界 活 得 跟 草 一样 ， 有 机会 幻想 一样 也是 [f 挺 嗨 +1##f] 的 。
-A: 对啊 ， 关键 是 这部 剧 的 主演 被 评论 为 又 一个 犹太 大 美女 。
-B: [g 美女 g] 我 [g 最喜欢 +1##g] 了 ！ 你 说 的 是 哪 一位 ？
-A: 盖尔 · 加朵 啊 ， 她 的 代表作 是 速度与激情7 ， 这位 美女 可 不会 叫 你 失望 啊 ， 哈哈 。
-B: 那 我 去 查 一下 她 的 资料 。
-
-A: 喜欢 看 [a 电影 a] 吗 ？
-B: [a 喜欢 +1##a] ， 有 推荐 吗 ？
-A: [b 旭日婚礼 b] 这部 电影 看 过 吗 ？
-B: 没看过 ， 什么时候 上映 的 电影 ？
-A: 2012年 这部 电影 就 上映 了 。
-B: 介绍 一下 内容 呗 ！
-A: 一个 女孩 在 结婚 那天 明白 自己 犯 了 一个 严重 的 错误 。
-B: 看 不 出 什么 关于 介绍 ！
-A: 电影 讲 的 是 一场 婚礼 背后 的 故事 ， [b 画面 很 美 +1##b] 就是 了 ， [c 女 主 c] 也 [c 很美 +1##c] ， 哈哈
-B: 给我 说说 女 主 吧
-A: 好 的 ， 女 主 名叫 [d 伊丽莎白 · 麦戈文 d] ， 61年 出生 的
-B: 我 知道 她 ， 茱莉亚音乐学院 毕业 的 ， [d 的确 挺 漂亮 +1##d] 的
-
-A: 你 是 什么 星座
-B: 双子座
-A: 我 是 白羊座 的 ， 和 阚清子 一个 星座
-B: 我 知道 他 ， 毕业 于 北京电影学院
-A: 是 啊 ， 她 的 代表作 [a 守望的天空 a] [a 真不错 +1##a] ！ 对 了 ， 里面 还有 一个 小姑娘 [b 演 的 很 棒 +1##b] ， 名字 是 叫 [b 王可昕 b] 的 ！
-B: 呃 ， 她 是 谁 ？
-A: 这么 一个 著名 的 童星 演员 你 都 不知道 ？ 她 还 参演 了 铁血红安 呢 ！
-B: 我 好像 有点 印象 ， 等 我 去 搜索 一 下 她 的 资料 。
-
-A: 你 喜欢 奇幻 儿童片 吗 ？
-B: 我 [a 喜欢 +1##a] [a 动画片 a] 。
-A: [b 动漫 电影 夜曲 b] 是 一部 [b 很 有诚意 +1##b] 的 奇幻 儿童片 ~ 克服 恐惧 没有 想象 中 的 那么 难 ， 给 你 推荐 一下 。
-B: 好 的 ， 下 班会 去 看 下 ， 谢谢 你 的 推荐 。
-A: 还有 [c 一部 电影 c] 也 [c 很不错 +1##c] 呢 ， 也是 5 年前 上映 的 ， 要不要 了解 一下 ？
-B: 名字 是 什么 ？ 说说看 。
-A: [d 海洋 d] ， 一部 [d 很好看 +1##d] 的 纪录片 。
-B: 好 的 ， 晚上 回去 看看 。
-
-A: 你 喜欢 看 中国 的 哪 一部 电影 ？
-B: 那 部 [a 我 不是 药神 a] [a 挺不错 +1##a] 的 。
-A: 给 你 推荐 一部 ， 名字 叫 [b 青蛙王国 b] ， 导演 是 尼尔森 · 申 ， 主演 是 石班瑜 。
-B: [b 名字 听起来 很 有意思 +1##b] ， 我 这 就 去 看 。
-A: 好 的 ， 对 了 ， 还有 一部 动画 类型 的 电影 也 [c 很 有趣 +1##c] ， 名字 叫做 [c+d+e 深海 e+d+c] 。
-B: 这个 我 还是 第一次 听说 。
-A: 是 一部 国产 影片 ， 虽然 [d 口碑 不是 太 好 -1##d] ， 但 我 感觉 [e 还不错 +1##e] 哦 ！
-B: 那 我 有 时间 去 看看 。
-
-A: 国际电影节 中 ， 中国 电影 获奖 的 几率 不是 很大 。
-B: 是 啊 ， 相比 而言 还是 有 一定 差距 的 。
-A: 我 看 了 一部 台湾 电影 。
-B: 什么 电影 ？
-A: 名字 叫 第50届 台湾电影金马奖 。
-B: 呵呵 ， 幸好 华语 电影 有 一个 金马奖 。
-A: 还有 [a+b+c 一部 电影 c+b+a] 也 [a 非常 好看 +1##a] ， 比 这部 还要 [b 好 +1##b] 一些 ， 网友 评论 说 是 一部 [c 不可多得 的 巨作 +1##c] 。
-B: 什么样 的 巨作 ？ 告诉我吧 ！
-A: [d+e 阿凡达 ： 打造 潘多拉 星球 e+d] ， 历史 评分 前 50 呢 ！
-B: [d 这么 厉害 +1##d] 的 电影 我 一定 [e 不能错过 +1##e] 。
-
-A: 听说 [a 配音 演员 的 声音 a] [a 都 很好听 +1##a] 。
-B: 那 是 ， 要 不 人家 能 给 电影 配音 么 ？
-A: 特别 是 那个 [b 配音界 的 大腕 姜广涛 b] ， [b 超 帅 +1##b] 。
-B: 嗯 ， 我 听说 过 他 。
-A: [c+d 他 的 校友 李佳 d+c] 是 一位 [c 漂亮 +1##c] 的 小姐 姐 哦 。
-B: 不 认识 耶 ， 但是 漂亮 的 小姐 姐 还是 会 去 关注 的 。
-A: 李佳 也是 毕业 于 北京电影学院 。 她 因为 暖 这部 作品 获得 第23届 中国 电影 金鸡奖 最佳女主角 奖 的 提名 。
-B: 那 小姐 姐 [d 很不错 +1##d] 嘛 ！ 那 我 更 应该 关注 了 。
-
-A: 你 了解 [a+b 你 的 父亲 b+a] 吗 ？
-B: [a 了解 ， +1##a] [b 很 了解 +1##b] 。
-A: 有 一部 韩剧 是 关于 父亲 的 电影 ， 名字 叫 [c 我的父亲 c] ， 看 是 上去 [c 特别 温暖 +1##c] 。
-B: [d+e 韩国 的 e+d] 应该 [d 比较 好看 +1##d] ， 韩国 的 就是 [e 很 温暖 +1##e] 。
-A: 而且 [f+g 这部 电影 的 导演 g+f] 也 [f 很 优秀 +1##f] ， 评论 说 ， 为 他 的 胆识 给他 点赞 ， 希望 中国 也 能 多 出 这样 敢 [g 说话 +1##g] 的 导演 。
-B: 这位 导演 是 谁 啊 ？ 你 快说 一下 。
-A: 这部 电影 的 导演 叫 [h 黄东赫 h] ， 是 1970年 出生 的 。
-B: 我 上网 去 搜 一下 他 ， 感觉 他 [h 很厉害 +1##h] 啊 。
-
-A: 你 喜欢 看 [a+b 恐怖 电影 b+a] 吗 ？
-B: [a 喜欢 +1##a] 啊 。
-A: 给 你 推荐 一个 《 魔鬼转生终结者 》 ， 挺 适合 你 的 。
-B: 太好了 ， 我 就 [b 喜欢 +1##b] 看 恐怖 电影 ， 有 时间 一定 看 。
-A: 还有 一部 20年 前 的 电影 是 Marilou Diaz - Abaya 导演 的 ， 推荐 给 你 吧 。
-B: 可以 啊 ， 你 说 吧 。
-A: 电影 名字 叫 [c 扶西 · 黎刹 c] ， 是 1998年12月25日 上映 的 ， 在 菲律宾 拍摄 的 。
-B: 电影 太 老 了 ， [c 没 新鲜感 -1##c] 。
-
-A: 感人 煽情 的 爱情 剧 你 喜欢 看 吗 ？
-B: 那 要 看 是 什么 片子 了 ？
-A: [a 印度 爱情片 《 爱 ， 没有明天 》 a] 。
-B: 你 已经 看过 了 吗 ？
-A: 看 过 一遍 ， [a 很不错 +1##a] ， 所以 想 和你 再 看 一遍 ， 行 吗 ？
-B: 当然 行 了 ， 说 看就看 。
-A: 这部 电影 之外 ， 其实 还有 [b+c+d+e 一部 喜剧 电影 e+d+c+b] 我 也是 [b 特别 喜欢 +1##b] ， 不过 是 12年 上映 的 ， 不知道 你 看 过 没有
-B: 喜剧片 对 我 [c 胃口 +1##c] ， 你 说 下 是 啥 片子 吧
-A: 它 的 名字 叫做 无敌破坏王 ， 那时候 票房 就 高达 六千四百多万 呢 ， 你 有空 去 看看 ， [d 特别 好看 +1##d] 。
-B: [e 听起来 不错 +1##e] ， 我 要 去 看看
-
+{"sentiments": [{"variables": null, "turn_id": 0, "span": [11, 12], "senti": 1}, {"variables": null, "turn_id": 1, "span": [7, 8], "senti": -1}, {"variables": null, "turn_id": 2, "span": [16, 16], "senti": 1}, {"variables": null, "turn_id": 2, "span": [21, 21], "senti": 1}, {"variables": null, "turn_id": 3, "span": [3, 3], "senti": 1}, {"variables": null, "turn_id": 3, "span": [20, 21], "senti": 1}, {"variables": null, "turn_id": 5, "span": [3, 3], "senti": 1}], "mentions": [{"turn_id": 0, "span": [2, 4]}, {"turn_id": 1, "span": [9, 11]}, {"turn_id": 2, "span": [6, 9]}, {"turn_id": 2, "span": [22, 23]}, {"turn_id": 2, "span": [22, 23]}, {"turn_id": 2, "span": [22, 23]}, {"turn_id": 5, "span": [1, 1]}]}
+{"sentiments": [{"variables": null, "turn_id": 1, "span": [1, 1], "senti": 1}, {"variables": null, "turn_id": 8, "span": [11, 13], "senti": 1}, {"variables": null, "turn_id": 8, "span": [20, 20], "senti": 1}, {"variables": null, "turn_id": 11, "span": [9, 11], "senti": 1}], "mentions": [{"turn_id": 0, "span": [3, 3]}, {"turn_id": 2, "span": [1, 1]}, {"turn_id": 8, "span": [17, 18]}, {"turn_id": 10, "span": [7, 9]}]}
+{"sentiments": [{"variables": null, "turn_id": 4, "span": [8, 8], "senti": 1}, {"variables": null, "turn_id": 4, "span": [17, 20], "senti": 1}], "mentions": [{"turn_id": 4, "span": [7, 7]}, {"turn_id": 4, "span": [25, 25]}]}
+{"sentiments": [{"variables": null, "turn_id": 1, "span": [2, 2], "senti": 1}, {"variables": null, "turn_id": 2, "span": [6, 7], "senti": 1}, {"variables": null, "turn_id": 4, "span": [5, 5], "senti": 1}, {"variables": null, "turn_id": 6, "span": [4, 4], "senti": 1}], "mentions": [{"turn_id": 1, "span": [3, 3]}, {"turn_id": 2, "span": [1, 3]}, {"turn_id": 4, "span": [2, 3]}, {"turn_id": 6, "span": [1, 1]}]}
+{"sentiments": [{"variables": null, "turn_id": 1, "span": [6, 6], "senti": 1}, {"variables": null, "turn_id": 3, "span": [1, 4], "senti": 1}, {"variables": null, "turn_id": 4, "span": [14, 15], "senti": 1}, {"variables": null, "turn_id": 6, "span": [7, 10], "senti": -1}, {"variables": null, "turn_id": 6, "span": [15, 15], "senti": 1}], "mentions": [{"turn_id": 1, "span": [3, 5]}, {"turn_id": 2, "span": [8, 8]}, {"turn_id": 4, "span": [19, 19]}, {"turn_id": 4, "span": [19, 19]}, {"turn_id": 4, "span": [19, 19]}]}
+{"sentiments": [{"variables": null, "turn_id": 6, "span": [5, 6], "senti": 1}, {"variables": null, "turn_id": 6, "span": [11, 11], "senti": 1}, {"variables": null, "turn_id": 6, "span": [19, 21], "senti": 1}, {"variables": null, "turn_id": 9, "span": [1, 2], "senti": 1}, {"variables": null, "turn_id": 9, "span": [7, 7], "senti": 1}], "mentions": [{"turn_id": 6, "span": [2, 3]}, {"turn_id": 6, "span": [2, 3]}, {"turn_id": 6, "span": [2, 3]}, {"turn_id": 8, "span": [1, 5]}, {"turn_id": 8, "span": [1, 5]}]}
+{"sentiments": [{"variables": null, "turn_id": 0, "span": [6, 7], "senti": 1}, {"variables": null, "turn_id": 2, "span": [9, 10], "senti": 1}, {"variables": null, "turn_id": 4, "span": [7, 7], "senti": 1}, {"variables": null, "turn_id": 7, "span": [4, 4], "senti": 1}], "mentions": [{"turn_id": 0, "span": [2, 5]}, {"turn_id": 2, "span": [4, 7]}, {"turn_id": 4, "span": [1, 4]}, {"turn_id": 4, "span": [1, 4]}]}
+{"sentiments": [{"variables": null, "turn_id": 1, "span": [1, 2], "senti": 1}, {"variables": null, "turn_id": 1, "span": [3, 4], "senti": 1}, {"variables": null, "turn_id": 2, "span": [17, 18], "senti": 1}, {"variables": null, "turn_id": 3, "span": [4, 5], "senti": 1}, {"variables": null, "turn_id": 3, "span": [10, 11], "senti": 1}, {"variables": null, "turn_id": 4, "span": [7, 8], "senti": 1}, {"variables": null, "turn_id": 4, "span": [28, 28], "senti": 1}, {"variables": null, "turn_id": 7, "span": [10, 10], "senti": 1}], "mentions": [{"turn_id": 0, "span": [3, 5]}, {"turn_id": 0, "span": [3, 5]}, {"turn_id": 2, "span": [12, 12]}, {"turn_id": 3, "span": [1, 2]}, {"turn_id": 3, "span": [1, 2]}, {"turn_id": 4, "span": [2, 5]}, {"turn_id": 4, "span": [2, 5]}, {"turn_id": 6, "span": [6, 6]}]}
+{"sentiments": [{"variables": null, "turn_id": 1, "span": [1, 1], "senti": 1}, {"variables": null, "turn_id": 3, "span": [5, 5], "senti": 1}, {"variables": null, "turn_id": 7, "span": [6, 7], "senti": -1}], "mentions": [{"turn_id": 0, "span": [4, 5]}, {"turn_id": 0, "span": [4, 5]}, {"turn_id": 6, "span": [4, 6]}]}
+{"sentiments": [{"variables": null, "turn_id": 4, "span": [5, 5], "senti": 1}, {"variables": null, "turn_id": 6, "span": [12, 13], "senti": 1}, {"variables": null, "turn_id": 7, "span": [4, 4], "senti": 1}, {"variables": null, "turn_id": 8, "span": [19, 20], "senti": 1}, {"variables": null, "turn_id": 9, "span": [1, 2], "senti": 1}], "mentions": [{"turn_id": 2, "span": [1, 7]}, {"turn_id": 6, "span": [7, 9]}, {"turn_id": 6, "span": [7, 9]}, {"turn_id": 6, "span": [7, 9]}, {"turn_id": 6, "span": [7, 9]}]}
