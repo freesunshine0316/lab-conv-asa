@@ -76,6 +76,7 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task, portion=
     data = load_data(path)
     num_conv, num_sentence, num_mntn = 0.0, 0.0, 0.0
     num_senti, num_senti_cross, num_senti_pos, num_senti_neu, num_senti_neg = 0.0, 0.0, 0.0, 0.0, 0.0
+    num_mntn_tokens = 0.0
     for instance in data:
         conv, sentiment, mention = instance['conv'], instance['sentiment'], instance['mention']
         num_conv += 1.0
@@ -89,10 +90,11 @@ def load_and_extract_features(path, tokenizer, tok2word_strategy, task, portion=
             num_senti_neu += (senti['senti'] == 0)
             num_senti_neg += (senti['senti'] == -1)
         num_mntn += len(mention)
+        num_mntn_tokens += sum([x['span'][1] - x['span'][0] + 1 for x in mention])
     print('Number of convs {} and sentences {}'.format(num_conv, num_sentence))
     print('Number of sentiments {}, cross {}, pos {}, neu {}, neg {}'.format(num_senti,
         num_senti_cross/num_senti, num_senti_pos/num_senti, num_senti_neu/num_senti, num_senti_neg/num_senti))
-    print('Number of mention {}'.format(num_mntn))
+    print('Number of mention {}, avg tokens {:.2f}'.format(num_mntn, num_mntn_tokens/num_mntn))
 
     if task == 'sentiment':
         return extract_features_sentiment(data, tokenizer, tok2word_strategy)
@@ -128,11 +130,15 @@ def bert_tokenize(word_seq, tokenizer, tok2word_strategy):
 
 
 def extract_features_sentiment(data, tokenizer, tok2word_strategy):
+    #UNK_ID = tokenizer.convert_tokens_to_ids(['[UNK]'])
     features = []
+    #unk_count, total_count = 0.0, 0.0
     for dialogue in data:
         for i, turn in enumerate(dialogue['conv']):
             input_ids, input_tok2word = bert_tokenize(turn, tokenizer, tok2word_strategy) # [tok_seq], [word_seq, word_len]
             input_tags = [TAG_MAPPING['O'] for _ in input_tok2word] # [word_seq]
+            #unk_count += sum([x == UNK_ID for x in input_ids])
+            #total_count += len(input_ids)
             refs = set()
             for senti in dialogue['sentiment']:
                 if senti['turn_id'] == i:
@@ -144,6 +150,7 @@ def extract_features_sentiment(data, tokenizer, tok2word_strategy):
                         input_tags[j] = TAG_MAPPING[senti_str+'I']
             features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_tags':input_tags,
                 'refs':refs, 'turn':' '.join('{}({})'.format(x,j) for j, x in enumerate(turn))})
+    #print('UNK rate: {:.2f}'.format(100*unk_count/total_count))
     return features
 
 
@@ -197,11 +204,11 @@ def extract_features_mention(data, tokenizer, tok2word_strategy, portion):
                     input_sentid.extend([i+3 for _ in senti_tok2word])
                     input_senti_mask.extend([1.0 for _ in senti_tok2word])
 
-                    # ADD [CLS]
-                    input_ids += [CLS_ID,]
-                    input_tok2word += [[len(input_ids)-1]]
-                    input_sentid.append(i+4)
-                    input_senti_mask.append(0.0)
+                    ## ADD [CLS]
+                    #input_ids += [CLS_ID,]
+                    #input_tok2word += [[len(input_ids)-1]]
+                    #input_sentid.append(i+4)
+                    #input_senti_mask.append(0.0)
 
                     input_ref = []
                     refs = set()
@@ -216,7 +223,7 @@ def extract_features_mention(data, tokenizer, tok2word_strategy, portion):
                         senti_lex = ' '.join(turn[senti_st:senti_ed+1])
                         features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_sentid':input_sentid,
                             'input_senti_mask':input_senti_mask, 'input_content_bound':input_content_bound, 'input_ref':input_ref,
-                            'refs':refs, 'all_lex':all_lex, 'senti_lex':senti_lex, 'is_cross':senti['is_cross']})
+                            'refs':refs, 'all_lex':all_lex, 'senti_lex':senti_lex, 'is_cross':senti['is_cross'], 'senti':senti['senti']})
     return features
 
 
@@ -318,6 +325,7 @@ def make_batch_mention(features, batch_size, is_sort=True, is_shuffle=False):
         batch['input_content_mask'] = torch.tensor(input_content_mask, dtype=torch.float)
         batch['all_lex'] = [features[N+i]['all_lex'] for i in range(0, B)]
         batch['senti_lex'] = [features[N+i]['senti_lex'] for i in range(0, B)]
+        batch['senti'] = [features[N+i]['senti'] for i in range(0, B)]
         if features[N]['input_ref'] != None:
             batch['input_ref'] = torch.tensor(input_ref, dtype=torch.float)
             batch['refs'] = [features[N+i]['refs'] for i in range(0, B)]

@@ -57,7 +57,7 @@ def calc_f1(n_out, n_ref, n_both):
     return pr, rc, f1
 
 
-def predict_sentiment(model, batches, verbose=0):
+def predict_sentiment(model, batches, verbose=0, senti=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
     predictions = []
@@ -72,10 +72,14 @@ def predict_sentiment(model, batches, verbose=0):
         for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()): # [batch, wordseq]
             wordseq_len = batch_wordseq_lengths[i]
             prds = extract_sentiment_from_tags(tag_ids[:wordseq_len])
+            if senti != None:
+                prds = set([x for x in prds if x[2] == senti])
             predictions.append(prds)
             if batch['refs'] is not None:
                 refs = set(tuple(x) for x in batch['refs'][i])
-                refs_un = set(tuple(x[:2]) for x in batch['refs'][i])
+                if senti != None:
+                    refs = set([x for x in refs if x[2] == senti])
+                refs_un = set(tuple(x[:2]) for x in refs)
                 n_ref += len(refs)
                 n_prd += len(prds)
                 n_both += sum(tuple(x) in refs for x in prds)
@@ -102,7 +106,7 @@ def predict_sentiment(model, batches, verbose=0):
         return {'predictions':predictions}
 
 
-def predict_mention(model, batches, verbose=0):
+def predict_mention(model, batches, verbose=0, senti=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
     predictions = []
@@ -116,6 +120,8 @@ def predict_mention(model, batches, verbose=0):
         loss += step_outputs['loss'].item()
         wordseq_num = step_outputs['wordseq_num']
         for i, x in enumerate(step_outputs['predictions'].cpu().tolist()):
+            if senti != None and senti != batch['senti'][i]:
+                continue
             st = x // wordseq_num
             ed = x % wordseq_num
             pred = ''.join(batch['all_lex'][i][st:ed+1])
@@ -153,7 +159,8 @@ def enrich_flag(FLAGS):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--prefix_path', type=str, required=True, help='Prefix path to the saved model')
-    parser.add_argument('--in_path', type=str, default=None, help='Path to the input file.')
+    parser.add_argument('--in_path', type=str, default=None, help='Path to the input file')
+    parser.add_argument('--senti_of_interest', type=int, default=None, help='Sentiment of interest for calculating scores')
     args, unparsed = parser.parse_known_args()
     FLAGS = config_utils.load_config(args.prefix_path + ".config.json")
     enrich_flag(FLAGS)
@@ -199,7 +206,7 @@ if __name__ == '__main__':
     model.to(device)
 
     if FLAGS.task == 'mention':
-        predict_mention(model, batches, verbose=0)
+        predict_mention(model, batches, verbose=0, senti=args.senti_of_interest)
     else:
-        predict_sentiment(model, batches, verbose=0)
+        predict_sentiment(model, batches, verbose=0, senti=args.senti_of_interest)
 

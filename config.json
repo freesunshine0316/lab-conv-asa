@@ -2,12 +2,12 @@
     "train_path": "data/duconv_train.txt",
     "dev_path": "data/duconv_dev.txt",
     "test_path": "data/duconv_test.txt",
-    "task": "mention",
+    "task": "sentiment",
     "log_dir": "logs",
-    "suffix": "me_embed",
-    "pretrained_path": "bert-base-chinese",
-    "freeze_bert":false,
-    "use_embedding":true,
+    "suffix": "se_roberta_wwm_freeze",
+    "pretrained_path": "hfl/chinese-roberta-wwm-ext",
+    "freeze_bert":true,
+    "use_embedding":false,
     "train_portion": "all",
 
     "is_shuffle": false,
@@ -23,5 +23,5 @@
 
     "tok2word_strategy": "avg",
     
-    "cuda_device": "5"
+    "cuda_device": "7"
 }

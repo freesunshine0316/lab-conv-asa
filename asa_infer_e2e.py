@@ -83,7 +83,7 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer):
             senti_lex = ' '.join(turn[senti_st:senti_ed+1])
             features.append({'input_ids':input_ids, 'input_tok2word':input_tok2word, 'input_sentid':input_sentid,
                 'input_senti_mask':input_senti_mask, 'input_content_bound':input_content_bound, 'input_ref':None,
-                'refs':None, 'all_lex':all_lex, 'senti_lex':senti_lex, 'is_cross':None})
+                'refs':None, 'all_lex':all_lex, 'senti_lex':senti_lex, 'is_cross':None, 'senti':senti['senti']})
     batches = asa_datastream.make_batch(features, 'mention', args.batch_size, is_sort=False, is_shuffle=False)
     assert len(features) == n_senti
 
