@@ -9,8 +9,9 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm, trange
 
-from pytorch_pretrained_bert.tokenization import BertTokenizer
-from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
+from transformers import BertTokenizer, AdamW, get_linear_schedule_with_warmup
+
+SPECIAL_TOKENS = {'additional_special_tokens': ['[filler0]', 'A:', 'B:', '[filler1]', '[filler2]']}
 
 import asa_model
 import asa_datastream
@@ -19,13 +20,13 @@ import config_utils
 
 FLAGS = None
 
-def dev_eval(model, batches, log_file, verbose=0):
+def dev_eval(model, tokenizer, batches, log_file, verbose=0):
     print('Evaluating on devset')
     start = time.time()
     if FLAGS.task == 'sentiment':
-        outputs = asa_evaluator.predict_sentiment(model, batches, verbose=verbose)
+        outputs = asa_evaluator.predict_sentiment(model, tokenizer, batches, verbose=verbose)
     else:
-        outputs = asa_evaluator.predict_mention(model, batches)
+        outputs = asa_evaluator.predict_mention(model, tokenizer, batches)
     duration = time.time() - start
     print('Loss: %.2f, time: %.3f sec' % (outputs['loss'], duration))
     log_file.write('Loss: %.2f, time: %.3f sec\n' % (outputs['loss'], duration))
@@ -64,21 +65,22 @@ def main():
     log_file.write('device: {}, n_gpu: {}, grad_accum_steps: {}\n'.format(device, n_gpu, FLAGS.grad_accum_steps))
 
     tokenizer = BertTokenizer.from_pretrained(FLAGS.pretrained_path)
+    tokenizer.add_special_tokens(SPECIAL_TOKENS)
 
     # load data and make_batches
     print('Loading data and making batches')
     train_features = asa_datastream.load_and_extract_features(FLAGS.train_path, tokenizer,
-            FLAGS.tok2word_strategy, FLAGS.task, FLAGS.train_portion)
+            FLAGS.task, FLAGS.train_portion)
     train_batches = asa_datastream.make_batch(train_features, FLAGS.task, FLAGS.batch_size,
             is_sort=FLAGS.is_sort, is_shuffle=FLAGS.is_shuffle)
 
     dev_features = asa_datastream.load_and_extract_features(FLAGS.dev_path, tokenizer,
-            FLAGS.tok2word_strategy, FLAGS.task)
+            FLAGS.task)
     dev_batches = asa_datastream.make_batch(dev_features, FLAGS.task, FLAGS.batch_size,
             is_sort=False, is_shuffle=False)
 
     test_features = asa_datastream.load_and_extract_features(FLAGS.test_path, tokenizer,
-            FLAGS.tok2word_strategy, FLAGS.task)
+            FLAGS.task)
     test_batches = asa_datastream.make_batch(test_features, FLAGS.task, FLAGS.batch_size,
             is_sort=False, is_shuffle=False)
 
@@ -90,28 +92,30 @@ def main():
     # create model
     print('Compiling model')
     if FLAGS.task == 'mention':
-        model = asa_model.BertAsaMe.from_pretrained(FLAGS.pretrained_path)
+        model = asa_model.BertAsaMe(FLAGS.pretrained_path)
     elif FLAGS.task == 'sentiment':
-        model = asa_model.BertAsaSe.from_pretrained(FLAGS.pretrained_path)
+        model = asa_model.BertAsaSe(FLAGS.pretrained_path)
     else:
         assert False, 'Unsupported task: ' + FLAGS.task
+    model.bert.resize_token_embeddings(len(tokenizer))
 
     if FLAGS.freeze_bert:
         model.freeze_bert()
     elif FLAGS.use_embedding:
         model.setup_embedding(len(tokenizer.vocab))
 
-    if os.path.exists(path_prefix + ".bert_model.bin"):
+    checkpoint_path = path_prefix + ".checkpoint.bin"
+    if os.path.exists(checkpoint_path):
         print('!!Existing pretrained model. Loading the model...')
-        model.load_state_dict(torch.load(path_prefix + ".bert_model.bin"))
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     if n_gpu > 1:
         model = nn.DataParallel(model)
 
-    if os.path.exists(path_prefix + ".bert_model.bin"):
-        best_score = dev_eval(model, test_batches, log_file, verbose=1)
+    if os.path.exists(checkpoint_path):
+        best_score = dev_eval(model, tokenizer, dev_batches, log_file, verbose=0)
         print('Initial performance: {}'.format(best_score))
-        sys.exit(0)
     else:
         best_score = 0.0
 
@@ -125,10 +129,12 @@ def main():
     grouped_params = [
             {'params': [p for n, p in named_params if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
             {'params': [p for n, p in named_params if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
-    optimizer = BertAdam(grouped_params,
-            lr=FLAGS.learning_rate,
-            warmup=FLAGS.warmup_proportion,
-            t_total=update_steps)
+    optimizer = AdamW(grouped_params,
+            lr=FLAGS.learning_rate, correct_bias=False)
+    if os.path.exists(checkpoint_path):
+        optimizer.load_state_dict(checkpoint['optimizer'])
+    scheduler = get_linear_schedule_with_warmup(optimizer,
+            num_warmup_steps=int(update_steps*FLAGS.warmup_proportion), num_training_steps=update_steps)
 
     finished_steps, finished_epochs = 0, 0
     train_batch_ids = list(range(0, len(train_batches)))
@@ -161,22 +167,21 @@ def main():
             if finished_steps % FLAGS.grad_accum_steps == 0:
                 optimizer.step()
                 optimizer.zero_grad()
+                scheduler.step()
 
         duration = time.time() - epoch_start
         print('\nTraining loss: %s, time: %.3f sec' % (str(epoch_loss), duration))
         log_file.write('\nTraining loss: %s, time: %.3f sec\n' % (str(epoch_loss), duration))
         verbose = 0 if eid >= 5 else 0
-        cur_score = dev_eval(model, dev_batches, log_file, verbose=verbose)
+        cur_score = dev_eval(model, tokenizer, dev_batches, log_file, verbose=verbose)
         if cur_score > best_score:
             print('Saving weights, score {} (prev_best) < {} (cur)'.format(best_score, cur_score))
             log_file.write('Saving weights, score {} (prev_best) < {} (cur)\n'.format(best_score, cur_score))
             best_score = cur_score
-            save_model(model, path_prefix)
-            FLAGS.best_score = best_score
-            config_utils.save_config(FLAGS, path_prefix + ".config.json")
+            save_model(model, optimizer, path_prefix)
         print('-------------')
         log_file.write('-------------\n')
-        dev_eval(model, test_batches, log_file)
+        dev_eval(model, tokenizer, test_batches, log_file)
         print('=============')
         log_file.write('=============\n')
         if torch.cuda.is_available():
@@ -184,14 +189,13 @@ def main():
         finished_epochs += 1
 
 
-def save_model(model, path_prefix):
-    model_to_save = model.module if hasattr(model, 'module') else model
-
-    model_bin_path = path_prefix + ".bert_model.bin"
-    model_config_path = path_prefix + ".bert_config.json"
-
-    torch.save(model_to_save.state_dict(), model_bin_path)
-    model_to_save.config.to_json_file(model_config_path)
+def save_model(model, optimizer, path_prefix):
+    config_utils.save_config(FLAGS, path_prefix + ".config.json")
+    state = {
+            'model_state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+    }
+    torch.save(state, path_prefix + ".checkpoint.bin")
 
 
 def check_config(FLAGS):

@@ -57,7 +57,7 @@ def calc_f1(n_out, n_ref, n_both):
     return pr, rc, f1
 
 
-def predict_sentiment(model, batches, verbose=0, senti=None):
+def predict_sentiment(model, tokenizer, batches, verbose=0, senti=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
     predictions = []
@@ -68,10 +68,10 @@ def predict_sentiment(model, batches, verbose=0, senti=None):
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
         batch_outputs = model(batch)
         loss += batch_outputs['loss'].item()
-        batch_wordseq_lengths = batch_outputs['wordseq_lengths'].cpu().tolist() # [batch]
-        for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()): # [batch, wordseq]
-            wordseq_len = batch_wordseq_lengths[i]
-            prds = extract_sentiment_from_tags(tag_ids[:wordseq_len])
+        batch_seq_lengths = batch_outputs['seq_lengths'].cpu().tolist() # [batch]
+        for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()): # [batch, seq]
+            seq_len = batch_seq_lengths[i]
+            prds = extract_sentiment_from_tags(tag_ids[:seq_len])
             if senti != None:
                 prds = set([x for x in prds if x[2] == senti])
             predictions.append(prds)
@@ -84,17 +84,17 @@ def predict_sentiment(model, batches, verbose=0, senti=None):
                 n_prd += len(prds)
                 n_both += sum(tuple(x) in refs for x in prds)
                 n_both_un += sum(tuple(x[:2]) in refs_un for x in prds)
-                for j in range(wordseq_len):
+                for j in range(seq_len):
                     ref_tag = ori_batch['input_tags'][i,j].item()
                     if ref_tag != 0:
                         n_right += (tag_ids[j] == ref_tag)
                         n_total += 1.0
             if verbose and set(prds) != refs:
                 assert batch['refs'] is not None
-                print(batch['turn'][i])
+                print(tokenizer.decode(batch['input_ids'][i]))
                 print(refs)
                 print(prds)
-                print(' '.join('{}({})'.format(TAGS[x],j) for j, x in enumerate(tag_ids[:wordseq_len])))
+                print(' '.join('{}({})'.format(TAGS[x],j) for j, x in enumerate(tag_ids[:seq_len])))
                 print('===========')
     model.train()
     if batches[0]['refs'] is not None:
@@ -106,7 +106,7 @@ def predict_sentiment(model, batches, verbose=0, senti=None):
         return {'predictions':predictions}
 
 
-def predict_mention(model, batches, verbose=0, senti=None):
+def predict_mention(model, tokenizer, batches, verbose=0, senti=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
     predictions = []
@@ -118,15 +118,17 @@ def predict_mention(model, batches, verbose=0, senti=None):
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
         step_outputs = model(batch)
         loss += step_outputs['loss'].item()
-        wordseq_num = step_outputs['wordseq_num']
+        seq_num = step_outputs['seq_num']
         for i, x in enumerate(step_outputs['predictions'].cpu().tolist()):
             if senti != None and senti != batch['senti'][i]:
                 continue
-            st = x // wordseq_num
-            ed = x % wordseq_num
-            pred = ''.join(batch['all_lex'][i][st:ed+1])
+            st = x // seq_num
+            ed = x % seq_num
+            pred = tokenizer.decode(batch['input_ids'][i,st:ed+1])
             predictions.append(pred)
             is_correct = pred in batch['refs'][i]
+            #print(pred)
+            #print(batch['refs'][i])
             n_right += is_correct
             n_total += 1.0
             n_right_same += is_correct & (batch['is_cross'][i] == False)
@@ -182,7 +184,7 @@ if __name__ == '__main__':
     print('Loading data and making batches')
     in_path = args.in_path if args.in_path is not None else FLAGS.test_path
     features = asa_datastream.load_and_extract_features(in_path, tokenizer,
-            FLAGS.tok2word_strategy, FLAGS.task)
+            FLAGS.task)
     batches = asa_datastream.make_batch(features, FLAGS.task, FLAGS.batch_size,
             is_sort=False, is_shuffle=False)
 

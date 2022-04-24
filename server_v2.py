@@ -54,43 +54,21 @@ class CASAParser(Resource):
 
     def put(self):
         print("got a put request")
-        dialog_list = json.loads(request.form['dialog_list'])
-
-        if dialog_list is None:
-            return {}
-
-        print(dialog_list)
-        phrase_list, result = self.parse(dialog_list)
-        print('{} {}'.format(phrase_list, result))
-
-        response = {"senti_str": json.dumps(result), "phrase_list": phrase_list}
-        return response
 
     def post(self):
         print("getting a post request ....")
-        dialog_list = None
+        dialog_turns = None
         for key in request.form.to_dict(flat=False):
             jo = json.loads(key)
-            if "dialog_list" in jo:
-                dialog_list = jo["dialog_list"]
+            if "dialog_turns" in jo:
+                dialog_turns = jo["dialog_turns"]
                 break
 
-        if dialog_list is None:
+        if dialog_turns is None:
             return {}
 
-        # get info in case 'dialog_list' is a dict
-        #utts = []
-        #for i in range(1, 9, 1):
-        #    key = "str{}".format(i)
-        #    if key in dialog_list:
-        #        utt = dialog_list[key].replace(" ", "").strip()
-        #        if len(utt) == 0:
-        #            break
-        #        else:
-        #            utts.append(utt)
 
-
-        phrase_list, result = self.parse(dialog_list)
+        phrase_list, result = self.parse(dialog_turns)
         print('{} {}'.format(phrase_list, result))
 
         response = {"senti_str": json.dumps(result), "phrase_list": phrase_list}
@@ -99,15 +77,12 @@ class CASAParser(Resource):
 
     def parse(self, utts):
         # word segment
-        utts_as_words, _ = self.texsmart_api(utts)
-        utts = []
+        utts_as_words = []
         offsets = [0,]
-        for i in range(len(utts_as_words)):
-            utts.append(" ".join(utts_as_words[i]))
-            if i < len(utts_as_words) - 1:
+        for i in range(len(utts)):
+            utts_as_words.append(utts[i].split())
+            if i < len(utts) - 1:
                 offsets.append(offsets[-1] + len(utts_as_words[i]))
-        assert len(utts) == len(offsets)
-        print(utts)
 
         # call CASA model
         utts_as_words = [['A:',] + x if i%2 == 0 else ['B:',] + x for i, x in enumerate(utts_as_words)]
@@ -116,67 +91,58 @@ class CASAParser(Resource):
 
         senti_res = []
         for senti, mentn in zip(sentiments, mentions):
-            x = {}
+            stn = senti['turn_id']
             sst, sed = senti['span']
-            sbase = offsets[senti['turn_id']]
-            x['senti_span'] = [sst - 1 + sbase, sed - 1 + sbase] # -1 is for omitting the A: or B: in the beginning
-            x['polarity'] = polarity_map[senti['senti']]
+            senti_str = ' '.join(utts_as_words[stn][sst:sed+1])
+            mtn = mentn['turn_id']
             mst, med = mentn['span']
-            mbase = offsets[mentn['turn_id']]
-            x['mentn_span'] = [mst - 1 + mbase, med - 1 + mbase]
-            senti_res.append(x)
+            mentn_str = ' '.join(utts_as_words[mtn][mst:med+1])
+            senti_res.append({'senti_str':senti_str, 'mentn_str':mentn_str})
+        print(senti_res)
+        return senti_res
 
-        if len(senti_res) == 0:
-            return [], []
+        #senti_res = []
+        #for senti, mentn in zip(sentiments, mentions):
+        #    x = {}
+        #    sst, sed = senti['span']
+        #    sbase = offsets[senti['turn_id']]
+        #    x['senti_span'] = [sst - 1 + sbase, sed - 1 + sbase] # -1 is for omitting the A: or B: in the beginning
+        #    x['polarity'] = polarity_map[senti['senti']]
+        #    mst, med = mentn['span']
+        #    mbase = offsets[mentn['turn_id']]
+        #    x['mentn_span'] = [mst - 1 + mbase, med - 1 + mbase]
+        #    senti_res.append(x)
 
-        # don't know if that's necessary
-        #input = "<SEP>".join(utts)
-        #if input.endswith("<SEP>"):
-        #    turns = input.split("<SEP>")[:-1]  # the last part is empty
-        #else:
-        #    turns = input.split("<SEP>")
+        #if len(senti_res) == 0:
+        #    return [], []
 
-        turn_words = [] # a list of utterances as list
-        for turn in turns:
-            turn_words.append(turn.strip().split(" "))
-        words, idx_mapping = preprocess_turns(turn_words)
+        #turn_words = [] # a list of utterances as list
+        #for turn in turns:
+        #    turn_words.append(turn.strip().split(" "))
+        #words, idx_mapping = preprocess_turns(turn_words)
 
-        for senti in senti_res:
-            senti['senti_span'][0] = idx_mapping[senti['senti_span'][0]]
-            senti['senti_span'][1] = idx_mapping[senti['senti_span'][1]]
-            senti['mentn_span'][0] = idx_mapping[senti['mentn_span'][0]]
-            senti['mentn_span'][1] = idx_mapping[senti['mentn_span'][1]]
+        #for senti in senti_res:
+        #    senti['senti_span'][0] = idx_mapping[senti['senti_span'][0]]
+        #    senti['senti_span'][1] = idx_mapping[senti['senti_span'][1]]
+        #    senti['mentn_span'][0] = idx_mapping[senti['mentn_span'][0]]
+        #    senti['mentn_span'][1] = idx_mapping[senti['mentn_span'][1]]
 
-        res = []
-        for i, senti in enumerate(senti_res):
-            senti_st, senti_ed = senti['senti_span']
-            senti_str = ''.join(words[senti_st:senti_ed+1])
-            mentn_st, mentn_ed = senti['mentn_span']
-            mentn_str = ''.join(words[mentn_st:mentn_ed+1])
-            args = [{'name': senti['polarity'], 'str': mentn_str}]
-            jo = {"senti_name": senti_str, "args": args, "senti_st": senti_st, "senti_ed": senti_ed}
-            res.append(jo)
+        #res = []
+        #for i, senti in enumerate(senti_res):
+        #    senti_st, senti_ed = senti['senti_span']
+        #    senti_str = ''.join(words[senti_st:senti_ed+1])
+        #    mentn_st, mentn_ed = senti['mentn_span']
+        #    mentn_str = ''.join(words[mentn_st:mentn_ed+1])
+        #    args = [{'name': senti['polarity'], 'str': mentn_str}]
+        #    jo = {"senti_name": senti_str, "args": args, "senti_st": senti_st, "senti_ed": senti_ed}
+        #    res.append(jo)
 
-        return words, res
+        #return words, res
 
     def decode(self, segmented_test):
         pass
 
-api.add_resource(CASAParser, '/casa')
-
-#def texsmart_api(text):
-#    obj = {"str": text}
-#    req_str = json.dumps(obj).encode()
-#    url = "https://texsmart.qq.com/api"
-#    r = requests.post(url, data=req_str)
-#    r.encoding = "utf-8"
-#    print(r.text)
-#
-#texsmart_api("你知道孙燕姿么？")
-#texsmart_api("她是很有名气的一位女歌手。")
-#texsmart_api("你知道她是哪年出生的吗？")
-#
-#sys.exit(0)
+api.add_resource(CASAParser, '/')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -212,3 +178,13 @@ if __name__ == '__main__':
     print('Conversational Aspect Sentiment Analysis service is now available')
     app.run(host='0.0.0.0', port=2205)
 
+    # def texsmart_api(text):
+    #     obj = {"str": text}
+    #     req_str = json.dumps(obj).encode()
+    #     url = "https://texsmart.qq.com/api"
+    #     r = requests.post(url, data=req_str)
+    #     r.encoding = "utf-8"
+    #     print(r.text)
+    #
+    # texsmart_api("她是很有名气的一位女歌手。")
+    # texsmart_api("你 知道 她 是 哪年 出生 的 吗 ？")
