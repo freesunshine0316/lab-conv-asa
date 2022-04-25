@@ -9,7 +9,7 @@ from flask_cors import CORS
 import torch
 import asa_infer_e2e
 import asa_model
-from pytorch_pretrained_bert.tokenization import BertTokenizer
+from transformers import BertTokenizer
 
 app = Flask(__name__)
 CORS(app)
@@ -29,26 +29,6 @@ def extract_sentiment(phrases, offset):
 
 
 class CASAParser(Resource):
-    def texsmart_api(self, text):
-        obj = {"str": text}
-        req_str = json.dumps(obj).encode()
-        url = "https://texsmart.qq.com/api"
-        r = requests.post(url, data=req_str)
-        r.encoding = "utf-8"
-        jo = json.loads(r.text)
-        phrases_list = []
-        tags_list = []
-        for sub_jo in jo["res_list"]:
-            phrases = []
-            tags = []
-            phrase_list = sub_jo["phrase_list"]
-            for i in range(len(phrase_list)):
-                phrases.append(phrase_list[i]["str"])
-                tags.append(phrase_list[i]["tag"])
-            phrases_list.append(phrases)
-            tags_list.append(tags)
-        return phrases_list, tags_list
-
     def get(self):
         print("got a get request")
 
@@ -62,41 +42,39 @@ class CASAParser(Resource):
             jo = json.loads(key)
             if "dialog_turns" in jo:
                 dialog_turns = jo["dialog_turns"]
+                dialog_turns = ['A: ' + x if i%2 == 0 else 'B: ' + x for i, x in enumerate(dialog_turns)]
                 break
 
         if dialog_turns is None:
             return {}
 
+        senti_res = self.parse(dialog_turns)
 
-        phrase_list, result = self.parse(dialog_turns)
-        print('{} {}'.format(phrase_list, result))
-
-        response = {"senti_str": json.dumps(result), "phrase_list": phrase_list}
+        response = {"senti_res_str": json.dumps(senti_res)}
         return response
 
 
     def parse(self, utts):
         # word segment
-        utts_as_words = []
+        utts_ids = []
         offsets = [0,]
         for i in range(len(utts)):
-            utts_as_words.append(utts[i].split())
+            utts_ids.append(tokenizer.encode(utts[i]))
             if i < len(utts) - 1:
-                offsets.append(offsets[-1] + len(utts_as_words[i]))
+                offsets.append(offsets[-1] + len(utts_ids[i]))
 
         # call CASA model
-        utts_as_words = [['A:',] + x if i%2 == 0 else ['B:',] + x for i, x in enumerate(utts_as_words)]
-        dialogue = {'conv': utts_as_words}
+        dialogue = {'conv': utts_ids}
         sentiments, mentions = asa_infer_e2e.decode_dialogue(FLAGS, dialogue, sentiment_model, mention_model, tokenizer)
 
         senti_res = []
         for senti, mentn in zip(sentiments, mentions):
             stn = senti['turn_id']
             sst, sed = senti['span']
-            senti_str = ' '.join(utts_as_words[stn][sst:sed+1])
+            senti_str = tokenizer.decode(utts_ids[stn][sst:sed+1])
             mtn = mentn['turn_id']
             mst, med = mentn['span']
-            mentn_str = ' '.join(utts_as_words[mtn][mst:med+1])
+            mentn_str = tokenizer.decode(utts_ids[mtn][mst:med+1])
             senti_res.append({'senti_str':senti_str, 'mentn_str':mentn_str})
         print(senti_res)
         return senti_res
@@ -142,7 +120,7 @@ class CASAParser(Resource):
     def decode(self, segmented_test):
         pass
 
-api.add_resource(CASAParser, '/')
+api.add_resource(CASAParser, '/casa')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

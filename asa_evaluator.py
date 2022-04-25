@@ -12,7 +12,9 @@ import config_utils
 import asa_model
 import asa_datastream
 from asa_datastream import TAGS
-from pytorch_pretrained_bert.tokenization import BertTokenizer
+from asa_trainer import SPECIAL_TOKENS
+
+from transformers import BertTokenizer
 
 
 # Pos-B Pos-I Pos-B Neu-B Neg-I O Neg-I Pos-I Pos-B
@@ -169,7 +171,6 @@ if __name__ == '__main__':
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.cuda_device
-    #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     print("CUDA_VISIBLE_DEVICES " + os.environ['CUDA_VISIBLE_DEVICES'])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -179,6 +180,7 @@ if __name__ == '__main__':
     tokenizer = None
     if 'bert' in FLAGS.pretrained_path:
         tokenizer = BertTokenizer.from_pretrained(FLAGS.pretrained_path)
+        tokenizer.add_special_tokens(SPECIAL_TOKENS)
 
     # load data and make_batches
     print('Loading data and making batches')
@@ -193,22 +195,24 @@ if __name__ == '__main__':
 
     print('Compiling model')
     if FLAGS.task == 'mention':
-        model = asa_model.BertAsaMe.from_pretrained(FLAGS.pretrained_path)
+        model = asa_model.BertAsaMe(FLAGS.pretrained_path)
     elif FLAGS.task == 'sentiment':
-        model = asa_model.BertAsaSe.from_pretrained(FLAGS.pretrained_path)
+        model = asa_model.BertAsaSe(FLAGS.pretrained_path)
     else:
         assert False, 'Unsupported task: ' + FLAGS.task
+    model.bert.resize_token_embeddings(len(tokenizer))
 
     if FLAGS.freeze_bert:
         model.freeze_bert()
     elif FLAGS.use_embedding:
         model.setup_embedding(len(tokenizer.vocab))
 
-    model.load_state_dict(torch.load(args.prefix_path + ".bert_model.bin"))#, map_location='cpu'))
+    checkpoint = torch.load(args.prefix_path + ".checkpoint.bin")
+    model.load_state_dict(checkpoint['model_state_dict'])#, map_location='cpu'))
     model.to(device)
 
     if FLAGS.task == 'mention':
-        predict_mention(model, batches, verbose=0, senti=args.senti_of_interest)
+        predict_mention(model, tokenizer, batches, verbose=0, senti=args.senti_of_interest)
     else:
-        predict_sentiment(model, batches, verbose=0, senti=args.senti_of_interest)
+        predict_sentiment(model, tokenizer, batches, verbose=0, senti=args.senti_of_interest)
 
