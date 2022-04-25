@@ -2,10 +2,9 @@
 import requests
 import sys, time, json
 
-url = 'http://localhost:8888/'
+url = 'http://localhost:2205/casa'
 
-dialog_list = {'str1': '拉娜·德雷这个人你听说过吗？', 'str2': '她是很有名气的一位女歌手。', 'str3': '是啊，我特别喜欢她。'}
-dialog_list = json.dumps(dialog_list)
-response = requests.put(url, data={'dialog_list': dialog_list})
+dialog_turns = ['拉娜·德雷这个人你听说过吗？', '她是很有名气的一位女歌手。', '是啊，我特别喜欢她。']
+response = requests.post(url, data={'dialog_turns': dialog_turns})
 obj = response.json()
-print(obj)
+print(json.dumps(obj, ensure_ascii=False))

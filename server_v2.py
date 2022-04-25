@@ -9,6 +9,10 @@ from flask_cors import CORS
 import torch
 import asa_infer_e2e
 import asa_model
+
+from asa_datastream import TAGS
+from asa_trainer import SPECIAL_TOKENS
+
 from transformers import BertTokenizer
 
 app = Flask(__name__)
@@ -38,20 +42,17 @@ class CASAParser(Resource):
     def post(self):
         print("getting a post request ....")
         dialog_turns = None
-        for key in request.form.to_dict(flat=False):
-            jo = json.loads(key)
-            if "dialog_turns" in jo:
-                dialog_turns = jo["dialog_turns"]
-                dialog_turns = ['A: ' + x if i%2 == 0 else 'B: ' + x for i, x in enumerate(dialog_turns)]
-                break
+        post_data = request.form.to_dict(flat=False)
+        if "dialog_turns" in post_data:
+            dialog_turns = post_data["dialog_turns"]
+            dialog_turns = ['A: ' + x if i%2 == 0 else 'B: ' + x for i, x in enumerate(dialog_turns)]
 
         if dialog_turns is None:
             return {}
 
         senti_res = self.parse(dialog_turns)
 
-        response = {"senti_res_str": json.dumps(senti_res)}
-        return response
+        return senti_res
 
 
     def parse(self, utts):
@@ -69,14 +70,15 @@ class CASAParser(Resource):
 
         senti_res = []
         for senti, mentn in zip(sentiments, mentions):
-            stn = senti['turn_id']
+            stid = senti['turn_id']
             sst, sed = senti['span']
-            senti_str = tokenizer.decode(utts_ids[stn][sst:sed+1])
-            mtn = mentn['turn_id']
+            senti_str = tokenizer.decode(utts_ids[stid][sst:sed+1])
+            mtid = mentn['turn_id']
             mst, med = mentn['span']
-            mentn_str = tokenizer.decode(utts_ids[mtn][mst:med+1])
-            senti_res.append({'senti_str':senti_str, 'mentn_str':mentn_str})
-        print(senti_res)
+            mentn_str = tokenizer.decode(utts_ids[mtid][mst:med+1])
+            value = {'senti_str':senti_str, 'mentn_str':mentn_str, 'polarity':senti['senti']}
+            senti_res.append({'value':value, 'score':0.0, 'type':'casa'})
+        print([x['value'] for x in senti_res])
         return senti_res
 
         #senti_res = []
@@ -127,7 +129,6 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, required=True, help='Should be consistent with training')
     parser.add_argument('--cuda_device', type=str, required=True, help='GPU ids (e.g. "1" or "1,2")')
     parser.add_argument('--bert_version', type=str, required=True, help='BERT version (e.g. "bert-base-chinese"')
-    parser.add_argument('--tok2word_strategy', type=str, required=True, help='Should be consistent with training, e.g. avg')
     parser.add_argument('--mention_model_path', type=str, required=True, help='The saved mention model')
     parser.add_argument('--sentiment_model_path', type=str, required=True, help='The saved sentiment model')
     FLAGS, unparsed = parser.parse_known_args()
@@ -142,15 +143,18 @@ if __name__ == '__main__':
     print('device: {}, n_gpu: {}'.format(device, n_gpu))
 
     tokenizer = BertTokenizer.from_pretrained(FLAGS.bert_version)
+    tokenizer.add_special_tokens(SPECIAL_TOKENS)
 
     print('Compiling model')
-    mention_model = asa_model.BertAsaMe.from_pretrained(FLAGS.bert_version)
-    mention_model.load_state_dict(torch.load(FLAGS.mention_model_path))
+    mention_model = asa_model.BertAsaMe(FLAGS.bert_version)
+    mention_model.bert.resize_token_embeddings(len(tokenizer))
+    mention_model.load_state_dict(torch.load(FLAGS.mention_model_path)['model_state_dict'])
     mention_model.to(device)
     mention_model.eval()
 
-    sentiment_model = asa_model.BertAsaSe.from_pretrained(FLAGS.bert_version)
-    sentiment_model.load_state_dict(torch.load(FLAGS.sentiment_model_path))
+    sentiment_model = asa_model.BertAsaSe(FLAGS.bert_version)
+    sentiment_model.bert.resize_token_embeddings(len(tokenizer))
+    sentiment_model.load_state_dict(torch.load(FLAGS.sentiment_model_path)['model_state_dict'])
     sentiment_model.to(device)
     sentiment_model.eval()
     print('Conversational Aspect Sentiment Analysis service is now available')
