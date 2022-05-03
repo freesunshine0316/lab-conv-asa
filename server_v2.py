@@ -76,9 +76,9 @@ class CASAParser(Resource):
             mtid = mentn['turn_id']
             mst, med = mentn['span']
             mentn_str = tokenizer.decode(utts_ids[mtid][mst:med+1])
-            value = {'senti_str':senti_str, 'mentn_str':mentn_str, 'polarity':senti['senti']}
-            senti_res.append({'value':value, 'score':0.0, 'type':'casa'})
-        print([x['value'] for x in senti_res])
+            value = {'sentiment':senti_str, 'mention':mentn_str, 'polarity':senti['senti']}
+            senti_res.append(value)
+        print(senti_res)
         return senti_res
 
         #senti_res = []
