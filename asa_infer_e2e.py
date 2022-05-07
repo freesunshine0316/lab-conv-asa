@@ -21,19 +21,23 @@ from asa_trainer import SPECIAL_TOKENS
 from transformers import BertTokenizer
 
 
-def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer):
+def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer, only_last_turn=False):
     print('Dialogue length : {}'.format(len(dialogue['conv'])))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     CLS_ID, SEP_ID = tokenizer.cls_token_id, tokenizer.sep_token_id
 
+    if len(dialogue['conv']) == 0:
+        return [], []
+
     # decode sentiment
     features = []
     for i, cur_ids in enumerate(dialogue['conv']):
-        features.append({'input_ids':cur_ids, 'input_tags':None, 'refs':None, 'turn':None})
+        if only_last_turn == False or i == len(dialogue['conv']) - 1:
+            features.append({'input_ids':cur_ids, 'input_tags':None, 'refs':None, 'turn':None})
     batches = asa_datastream.make_batch(features, 'sentiment', args.batch_size, is_sort=False, is_shuffle=False)
 
     sentiments = defaultdict(list)
-    turn_id = 0
+    turn_id = len(dialogue['conv']) - 1 if only_last_turn == True else 0
     for ori_batch in batches:
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
         batch_outputs = sentiment_model(batch)

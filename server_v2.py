@@ -66,7 +66,8 @@ class CASAParser(Resource):
 
         # call CASA model
         dialogue = {'conv': utts_ids}
-        sentiments, mentions = asa_infer_e2e.decode_dialogue(FLAGS, dialogue, sentiment_model, mention_model, tokenizer)
+        sentiments, mentions = asa_infer_e2e.decode_dialogue(FLAGS, dialogue, sentiment_model, mention_model, tokenizer,
+                only_last_turn=True)
 
         senti_res = []
         for senti, mentn in zip(sentiments, mentions):
