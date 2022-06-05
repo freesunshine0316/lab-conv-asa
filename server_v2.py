@@ -54,6 +54,15 @@ class CASAParser(Resource):
 
         return senti_res
 
+    def remove_space(self, ori_str):
+        new_str = ''
+        pre_ascii = False
+        for tok in ori_str.split():
+            if pre_ascii and tok.isascii():
+                new_str += ' '
+            new_str += tok
+            pre_ascii = tok.isascii()
+        return new_str
 
     def parse(self, utts):
         # word segment
@@ -73,10 +82,10 @@ class CASAParser(Resource):
         for senti, mentn in zip(sentiments, mentions):
             stid = senti['turn_id']
             sst, sed = senti['span']
-            senti_str = tokenizer.decode(utts_ids[stid][sst:sed+1])
+            senti_str = self.remove_space(tokenizer.decode(utts_ids[stid][sst:sed+1]))
             mtid = mentn['turn_id']
             mst, med = mentn['span']
-            mentn_str = tokenizer.decode(utts_ids[mtid][mst:med+1])
+            mentn_str = self.remove_space(tokenizer.decode(utts_ids[mtid][mst:med+1]))
             value = {'sentiment':senti_str, 'mention':mentn_str, 'polarity':senti['senti']}
             senti_res.append(value)
         print(senti_res)
