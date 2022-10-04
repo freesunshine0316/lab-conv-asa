@@ -78,8 +78,9 @@ class BertAsaMe(nn.Module):
                 ed = min(tokseq_num, st + 512)
                 cur_ids = batch['input_ids'][:, st:ed]
                 cur_mask = batch['input_mask'][:, st:ed]
-                cur_tok_repre, _ = self.bert(input_ids=cur_ids, attention_mask=cur_mask, return_dict=True)
-                tok_repre.append(cur_tok_repre.last_hidden_state)
+                cur_tok_repre = self.bert(input_ids=cur_ids, attention_mask=cur_mask,
+                                          return_dict=True).last_hidden_state
+                tok_repre.append(cur_tok_repre)
                 st = ed
             tok_repre = torch.cat(tok_repre, dim=1)
         else:

@@ -53,38 +53,38 @@ def is_int(s):
 
 
 def gen_initial_data(path, tokenizer, texsmart_path, out_path, out_question_path):
-    texsmart_path_lib = os.path.join(texsmart_path, "lib/")
-    texsmart_path_kg = os.path.join(texsmart_path, "data/nlu/kb/")
-    if not os.path.isdir(texsmart_path_lib) or not os.path.isdir(texsmart_path_kg):
-        return
+    # texsmart_path_lib = os.path.join(texsmart_path, "lib/")
+    # texsmart_path_kg = os.path.join(texsmart_path, "data/nlu/kb/")
+    # if not os.path.isdir(texsmart_path_lib) or not os.path.isdir(texsmart_path_kg):
+    #     return
 
-    sys.path.append(texsmart_path_lib)
-    from tencent_ai_texsmart import NluEngine
-    texsmart = NluEngine(texsmart_path_kg, 1)
-    opts = {
-        "input_spec": {
-            "lang": "auto"
-        },
-        "word_seg": {
-            "enable": False
-        },
-        "pos_tagging": {
-            "enable": False,
-            "alg": "log_linear"
-        },
-        "ner": {
-            "enable": True,
-            "alg": "fine.std"
-        },
-        "syntactic_parsing": {
-            "enable": False
-        },
-        "srl": {
-            "enable": False
-        }
-    }
-    opts_str = json.dumps(opts)
-    print("Loading Texsmart succeed!")
+    # sys.path.append(texsmart_path_lib)
+    # from tencent_ai_texsmart import NluEngine
+    # texsmart = NluEngine(texsmart_path_kg, 1)
+    # opts = {
+    #     "input_spec": {
+    #         "lang": "auto"
+    #     },
+    #     "word_seg": {
+    #         "enable": False
+    #     },
+    #     "pos_tagging": {
+    #         "enable": False,
+    #         "alg": "log_linear"
+    #     },
+    #     "ner": {
+    #         "enable": True,
+    #         "alg": "fine.std"
+    #     },
+    #     "syntactic_parsing": {
+    #         "enable": False
+    #     },
+    #     "srl": {
+    #         "enable": False
+    #     }
+    # }
+    # opts_str = json.dumps(opts)
+    # print("Loading Texsmart succeed!")
 
     data = load_data(path, tokenizer)
 
@@ -96,8 +96,8 @@ def gen_initial_data(path, tokenizer, texsmart_path, out_path, out_question_path
             conv_str = ''.join(conv[i][1:])
             # conv_entities = texsmart.parse_text_ext(conv_str, opts_str).entities()
             if conv[i][-1] in (
-                    '?',
-                    '？') and '他' not in conv_str and '她' not in conv_str and '它' not in conv_str and '喜欢' in conv_str:
+                    '?', '？'
+            ) and '他' not in conv_str and '她' not in conv_str and '它' not in conv_str:  # and '喜欢' in conv_str:
                 turn1 = ''.join(conv[i][1:])
                 turn2 = ''.join(conv[i + 1][1:])
                 new_data_questions.append({'conv': [turn1, turn2]})
@@ -106,10 +106,10 @@ def gen_initial_data(path, tokenizer, texsmart_path, out_path, out_question_path
                 if mentn["var"] in senti["variables"] and (mentn["turn_id"] + 1 == senti["turn_id"] or
                                                            mentn["turn_id"] == senti["turn_id"]):
 
-                    mentn_str = ''.join(conv[mentn["turn_id"]][mentn['span'][0]:mentn['span'][1] + 1])
-                    mentn_entities = texsmart.parse_text_ext(mentn_str, opts_str).entities()
-                    if len(mentn_entities) == 0:
-                        continue
+                    # mentn_str = ''.join(conv[mentn["turn_id"]][mentn['span'][0]:mentn['span'][1] + 1])
+                    # mentn_entities = texsmart.parse_text_ext(mentn_str, opts_str).entities()
+                    # if len(mentn_entities) == 0:
+                    #     continue
 
                     new_conv = []
                     for tid in range(mentn["turn_id"], senti["turn_id"] + 1):
@@ -123,17 +123,17 @@ def gen_initial_data(path, tokenizer, texsmart_path, out_path, out_question_path
                     new_mentn = copy.copy(mentn)
                     new_mentn['turn_id'] = 0  # always the first turn
                     new_mentn['span'] = [x - 1 for x in mentn['span']]  # adjust as 'A:/B:' is removed
-                    new_mentn['category'] = mentn_entities[0].type.i18n
+                    # new_mentn['category'] = mentn_entities[0].type.i18n
 
-                    new_data.append({'conv': new_conv, 'sentiment': new_senti, 'mention': new_mentn})
+                    new_data.append({'conv': new_conv})  # , 'sentiment': new_senti, 'mention': new_mentn})
 
-    #with open(out_path, "w") as f:
-    #    for x in new_data:
-    #        f.write(json.dumps(x, ensure_ascii=False) + '\n')
+    with open(out_path, "w") as f:
+        for x in new_data:
+            f.write(json.dumps(x, ensure_ascii=False) + '\n')
 
     with open(out_question_path, "w") as f:
         for x in new_data_questions:
-            f.write('\n'.join(x["conv"]) + '\n\n')
+            f.write(json.dumps(x, ensure_ascii=False) + '\n')
 
 
 def load_data(path, tokenizer):
@@ -413,6 +413,10 @@ if __name__ == '__main__':
     SPECIAL_TOKENS = {'additional_special_tokens': ['[filler0]', 'A:', 'B:', '[filler1]', '[filler2]']}
     tokenizer = BertTokenizer.from_pretrained("hfl/chinese-bert-wwm-ext")
     tokenizer.add_special_tokens(SPECIAL_TOKENS)
-    texsmart_path = "/harddisk/user/lfsong/services/texsmart-sdk-0.3.6-s/"
-    gen_initial_data("data/duconv.txt", tokenizer, texsmart_path, "data/initial_train_data.jsonl",
-                     "data/initial_question_data.txt")
+    texsmart_path = "/personaldata_fast/lfsong/services/texsmart-sdk-0.3.6-s/"
+    gen_initial_data("data/duconv.txt", tokenizer, texsmart_path, "data/duconv_declare.jsonl",
+                     "data/duconv_question.jsonl")
+    gen_initial_data("data/dulemon_both.txt_rst", tokenizer, texsmart_path, "data/dulemon_both_declare.jsonl",
+                     "data/dulemon_both_question.jsonl")
+    gen_initial_data("data/dulemon_both.txt_rst", tokenizer, texsmart_path, "data/dulemon_both_declare.jsonl",
+                     "data/dulemon_both_question.jsonl")

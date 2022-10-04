@@ -1,4 +1,3 @@
-
 import os, sys, json
 import argparse
 import numpy as np
@@ -33,7 +32,7 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer, o
     features = []
     for i, cur_ids in enumerate(dialogue['conv']):
         if only_last_turn == False or i == len(dialogue['conv']) - 1:
-            features.append({'input_ids':cur_ids, 'input_tags':None, 'refs':None, 'turn':None})
+            features.append({'input_ids': cur_ids, 'input_tags': None, 'refs': None, 'turn': None})
     batches = asa_datastream.make_batch(features, 'sentiment', args.batch_size, is_sort=False, is_shuffle=False)
 
     sentiments = defaultdict(list)
@@ -41,13 +40,13 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer, o
     for ori_batch in batches:
         batch = {k: v.to(device) if type(v) == torch.Tensor else v for k, v in ori_batch.items()}
         batch_outputs = sentiment_model(batch)
-        batch_seq_lengths = batch_outputs['seq_lengths'].cpu().tolist() # [batch]
-        for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()): # [batch, seq]
+        batch_seq_lengths = batch_outputs['seq_lengths'].cpu().tolist()  # [batch]
+        for i, tag_ids in enumerate(batch_outputs['predictions'].cpu().tolist()):  # [batch, seq]
             seq_len = batch_seq_lengths[i]
             for senti in asa_evaluator.extract_sentiment_from_tags(tag_ids[:seq_len]):
                 st, ed, x = senti
                 if ed - st <= 6:
-                    sentiments[turn_id].append({'variables':None, 'turn_id':turn_id, 'span':(st,ed), 'senti':x})
+                    sentiments[turn_id].append({'variables': None, 'turn_id': turn_id, 'span': (st, ed), 'senti': x})
             turn_id += 1
     assert len(dialogue['conv']) == turn_id
     n_senti = sum(len(x) for x in sentiments.values())
@@ -55,29 +54,42 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer, o
     # decode mention
     features = []
     all_ids = []
-    all_offsets = [0,]
-    all_sentids = [] # start from 1 to avoid padding 0s
+    all_offsets = [
+        0,
+    ]
+    all_sentids = []  # start from 1 to avoid padding 0s
     for i, cur_ids in enumerate(dialogue['conv']):
         all_ids += cur_ids
-        all_offsets.append(all_offsets[-1]+len(cur_ids))
-        all_sentids.extend([i+1 for _ in cur_ids])
+        all_offsets.append(all_offsets[-1] + len(cur_ids))
+        all_sentids.extend([i + 1 for _ in cur_ids])
         for senti in sentiments[i]:
             # ADD w_1^1, ..., w_1^{N_1}, ..., w_i^{N_i} [SEP]
-            input_ids = all_ids + [SEP_ID,]
-            input_sentids = all_sentids + [i+2,]
+            input_ids = all_ids + [
+                SEP_ID,
+            ]
+            input_sentids = all_sentids + [
+                i + 2,
+            ]
             input_senti_mask = [0.0 for _ in input_ids]
-            input_content_bound = len(input_ids)-1
+            input_content_bound = len(input_ids) - 1
 
             # ADD w_{s_j}^1, ..., w_{s_j}^{|s_j|}
-            senti_st, senti_ed = senti['span'] # [st, ed]
-            senti_ids = cur_ids[senti_st:senti_ed+1]
+            senti_st, senti_ed = senti['span']  # [st, ed]
+            senti_ids = cur_ids[senti_st:senti_ed + 1]
             input_ids += senti_ids
-            input_sentids.extend([i+3 for _ in senti_ids])
+            input_sentids.extend([i + 3 for _ in senti_ids])
             input_senti_mask.extend([1.0 for _ in senti_ids])
 
-            features.append({'input_ids':input_ids, 'input_sentids':input_sentids, 'input_ref':None,
-                'input_senti_mask':input_senti_mask, 'input_content_bound':input_content_bound, 'refs':None,
-                'is_cross':None, 'senti':senti['senti']})
+            features.append({
+                'input_ids': input_ids,
+                'input_sentids': input_sentids,
+                'input_ref': None,
+                'input_senti_mask': input_senti_mask,
+                'input_content_bound': input_content_bound,
+                'refs': None,
+                'is_cross': None,
+                'senti': senti['senti']
+            })
     batches = asa_datastream.make_batch(features, 'mention', args.batch_size, is_sort=False, is_shuffle=False)
     assert len(features) == n_senti
 
@@ -90,12 +102,12 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer, o
             st = x // batch_seq_maxlen
             ed = x % batch_seq_maxlen
             turn_id = 0
-            while all_offsets[turn_id+1] <= st:
+            while all_offsets[turn_id + 1] <= st:
                 turn_id += 1
             turn_st = st - all_offsets[turn_id]
             turn_ed = ed - all_offsets[turn_id]
             assert turn_st >= 0
-            mentions.append({'turn_id':turn_id, 'span':(turn_st,turn_ed)})
+            mentions.append({'turn_id': turn_id, 'span': (turn_st, turn_ed)})
     assert len(mentions) == n_senti
 
     sentiments_list = []
@@ -107,63 +119,89 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer, o
 
 
 def gen_string_results(dialogue, sentiments, mentions):
-    dialogue_casa_st = []
-    dialogue_casa_ed = []
-    senti_occupy = []
+    dialogue['conv_str'] = [tokenizer.convert_ids_to_tokens(turn) for turn in dialogue['conv']]
+
+    dialogue_casa_st = []  #
+    dialogue_casa_ed = []  #
+    is_occupy = []
     for i in range(len(dialogue['conv'])):
-        dialogue_casa_st.append(['',]*len(dialogue['conv'][i]))
-        dialogue_casa_ed.append(['',]*len(dialogue['conv'][i]))
-        senti_occupy.append([False,]*len(dialogue['conv'][i]))
+        dialogue_casa_st.append([
+            '',
+        ] * len(dialogue['conv'][i]))
+        dialogue_casa_ed.append([
+            '',
+        ] * len(dialogue['conv'][i]))
+        is_occupy.append([
+            False,
+        ] * len(dialogue['conv'][i]))
 
-    for senti in sentiments:
-        senti_st, senti_ed = senti['span']
-        senti_tid = senti['turn_id']
-        for j in range(senti_st, senti_ed+1):
-            assert senti_occupy[senti_tid][j] == False
-            senti_occupy[senti_tid][j] = True
-
-    varlist = list(string.ascii_lowercase)
-    x_map = {1:'+1', 0:'0', -1:'-1'}
-    vid = 0
+    is_discarded = []  #
+    mention_set = set()
     for i, (senti, mentn) in enumerate(zip(sentiments, mentions)):
+        is_conflict = False
         senti_st, senti_ed = senti['span']
         senti_tid = senti['turn_id']
-        senti_x = x_map[senti['senti']]
         mentn_st, mentn_ed = mentn['span']
         mentn_tid = mentn['turn_id']
+        for j in range(senti_st, senti_ed + 1):
+            if is_occupy[senti_tid][j]:
+                is_conflict = True
+        if (mentn_tid, mentn_st, mentn_ed) not in mention_set:
+            for j in range(mentn_st, mentn_ed + 1):
+                if is_occupy[mentn_tid][j]:
+                    is_conflict = True
+        is_discarded.append(is_conflict)
+        if is_conflict is False:
+            for j in range(senti_st, senti_ed + 1):
+                is_occupy[senti_tid][j] = True
+            for j in range(mentn_st, mentn_ed + 1):
+                is_occupy[mentn_tid][j] = True
+            mention_set.add((mentn_tid, mentn_st, mentn_ed))
+    print(is_discarded)
 
-        conflict = False
-        for j in range(mentn_st, mentn_ed+1):
-            conflict |= senti_occupy[mentn_tid][j]
-        if conflict:
+    x_map = {1: '+1', 0: '0', -1: '-1'}
+    varlist = list(string.ascii_lowercase)
+    var_map = {}
+    vid = 0
+    for i, (senti, mentn) in enumerate(zip(sentiments, mentions)):
+        if is_discarded[i]:
             continue
 
-        var = varlist[vid]
-        vid += 1
-        dialogue_casa_st[senti_tid][senti_st] = '[{}'.format(var)
-        dialogue_casa_ed[senti_tid][senti_ed] = '{}@@{}]'.format(senti_x, var)
+        senti_x = x_map[senti['senti']]
+        senti_st, senti_ed = senti['span']
+        senti_tid = senti['turn_id']
+        mentn_st, mentn_ed = mentn['span']
+        mentn_tid = mentn['turn_id']
+        mentn_str = ''.join(dialogue['conv_str'][mentn_tid][mentn_st:mentn_ed])
 
-        if dialogue_casa_st[mentn_tid][mentn_st] == '':
-            dialogue_casa_st[mentn_tid][mentn_st] = '[{}'.format(var)
+        if mentn_str in var_map:
+            var = var_map[mentn_str]
         else:
-            dialogue_casa_st[mentn_tid][mentn_st] = dialogue_casa_st[mentn_tid][mentn_st] + '+{}'.format(var)
+            var = varlist[vid]
+            vid += 1
+            var_map[mentn_str] = var
 
-        if dialogue_casa_ed[mentn_tid][mentn_ed] == '':
-            dialogue_casa_ed[mentn_tid][mentn_ed] = '{}]'.format(var)
+        dialogue_casa_st[mentn_tid][mentn_st] = f'[{var}'
+        dialogue_casa_ed[mentn_tid][mentn_ed] = ']'
+
+        if dialogue_casa_st[senti_tid][senti_st] == '':
+            dialogue_casa_st[senti_tid][senti_st] = f'[{var}'
         else:
-            dialogue_casa_ed[mentn_tid][mentn_ed] = '{}+'.format(var) + dialogue_casa_ed[mentn_tid][mentn_ed]
+            dialogue_casa_st[senti_tid][senti_st] = dialogue_casa_st[senti_tid][senti_st] + f'+{var}'
+
+        if dialogue_casa_ed[senti_tid][senti_ed] == '':
+            dialogue_casa_ed[senti_tid][senti_ed] = f'{senti_x}]'
 
     turns_with_casa = []
-    for case_st, turn, casa_ed in zip(dialogue_casa_st, dialogue['conv'], dialogue_casa_ed):
-        turn = tokenizer.convert_ids_to_tokens(turn)
+    for case_st, turn, casa_ed in zip(dialogue_casa_st, dialogue['conv_str'], dialogue_casa_ed):
         twc = []
         for st, x, ed in zip(case_st, turn, casa_ed):
             if st == '' and ed == '':
                 twc.append(x)
             elif st != '' and ed != '':
-                twc.append(' '.join([st,x,ed]))
+                twc.append(' '.join([st, x, ed]))
             else:
-                tmp = [st,x] if ed == '' else [x,ed]
+                tmp = [st, x] if ed == '' else [x, ed]
                 twc.append(' '.join(tmp))
         turns_with_casa.append(' '.join(twc).replace(' ##', ''))
     return '\n'.join(turns_with_casa)
@@ -174,12 +212,15 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, required=True, help='Should be consistent with training')
     parser.add_argument('--cuda_device', type=str, required=True, help='GPU ids (e.g. "1" or "1,2")')
     parser.add_argument('--bert_version', type=str, required=True, help='BERT version (e.g. "bert-base-chinese"')
-    parser.add_argument('--tok2word_strategy', type=str, required=True, help='Should be consistent with training, e.g. avg')
+    parser.add_argument('--tok2word_strategy',
+                        type=str,
+                        required=True,
+                        help='Should be consistent with training, e.g. avg')
     parser.add_argument('--mention_model_path', type=str, required=True, help='The saved mention model')
     parser.add_argument('--sentiment_model_path', type=str, required=True, help='The saved sentiment model')
     parser.add_argument('--in_path', type=str, required=True, help='Path to the input file')
     parser.add_argument('--out_path', type=str, required=True, help='Path to the output file')
-    parser.add_argument('--out_format', type=str, choices=['casa_json','full_text'], help='Format of outputs')
+    parser.add_argument('--out_format', type=str, choices=['casa_json', 'full_text'], help='Format of outputs')
     args, unparsed = parser.parse_known_args()
 
     os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -250,8 +291,6 @@ if __name__ == '__main__':
         if args.out_format == 'full_text':
             outputs = gen_string_results(dialogue, sentiments, mentions) + '\n'
         else:
-            outputs = json.dumps({'sentiments':sentiments,'mentions':mentions})
-        f.write(outputs+'\n')
+            outputs = json.dumps({'sentiments': sentiments, 'mentions': mentions})
+        f.write(outputs + '\n')
     f.close()
-
-
