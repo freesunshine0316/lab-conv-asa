@@ -44,6 +44,10 @@ def check_tag_sentiment(tid):
     assert False, 'illegal tid {}'.format(tid)
 
 
+def is_special_token(s):
+    return s in ('[CLS]', '[UNK]', '[SEP]')
+
+
 def is_int(s):
     try:
         int(s)
@@ -152,16 +156,16 @@ def load_data(path, tokenizer):
             turn = []
             flag = False
             for tok in line.split():
-                if tok.startswith('['):
-                    assert flag == False, 'Erroneous CASA annotations for {}'.format(line)
+                if is_special_token(tok) is False and tok.startswith('['):
+                    assert flag is False, f'Erroneous CASA annotations for {line}'
                     st = len(turn)
                     variables = tok[1:].split('+')
                     flag = True
-                elif tok.endswith(']') and (tok == ']' or is_int(tok[:-1])):
-                    assert flag == True, 'Erroneous CASA annotations for {}'.format(line)
+                elif is_special_token(tok) is False and tok.endswith(']') and (tok == ']' or is_int(tok[:-1])):
+                    assert flag is True, f'Erroneous CASA annotations for {line}'
                     ed = len(turn) - 1  # [st, ed]
                     senti = None if tok == ']' else int(tok[:-1])
-                    if senti != None:  # sentiment
+                    if senti is not None:  # sentiment
                         assert senti in (-1, 0, 1)
                         sentiment.append({
                             'variables': variables,
@@ -170,7 +174,7 @@ def load_data(path, tokenizer):
                             'senti': senti
                         })
                     else:  # mention
-                        assert len(variables) == 1, 'Erroneous CASA annotations for {}'.format(line)
+                        assert len(variables) == 1, f'Erroneous CASA annotations for {line}'
                         mention.append({'var': variables[0], 'span': (st, ed), 'turn_id': len(conv)})
                     flag = False
                 else:
@@ -414,9 +418,9 @@ if __name__ == '__main__':
     tokenizer = BertTokenizer.from_pretrained("hfl/chinese-bert-wwm-ext")
     tokenizer.add_special_tokens(SPECIAL_TOKENS)
     texsmart_path = "/personaldata_fast/lfsong/services/texsmart-sdk-0.3.6-s/"
-    gen_initial_data("data/duconv.txt", tokenizer, texsmart_path, "data/duconv_declare.jsonl",
-                     "data/duconv_question.jsonl")
-    gen_initial_data("data/dulemon_both.txt_rst", tokenizer, texsmart_path, "data/dulemon_both_declare.jsonl",
-                     "data/dulemon_both_question.jsonl")
-    gen_initial_data("data/dulemon_both.txt_rst", tokenizer, texsmart_path, "data/dulemon_both_declare.jsonl",
-                     "data/dulemon_both_question.jsonl")
+    # gen_initial_data("data/duconv.txt", tokenizer, texsmart_path, "data/duconv_declare.jsonl",
+    #                  "data/duconv_question.jsonl")
+    # gen_initial_data("data/dulemon_both.txt_rst", tokenizer, texsmart_path, "data/dulemon_both_declare.jsonl",
+    #                  "data/dulemon_both_question.jsonl")
+    gen_initial_data("data/naturalconv_dialog.txt_rst", tokenizer, texsmart_path,
+                     "data/naturalconv_dialog_declare.jsonl", "data/naturalconv_dialog_question.jsonl")

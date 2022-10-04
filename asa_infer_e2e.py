@@ -118,6 +118,10 @@ def decode_dialogue(args, dialogue, sentiment_model, mention_model, tokenizer, o
     return sentiments_list, mentions
 
 
+def span_overlap(a, b):
+    return a[0] <= b[0] <= a[1] or a[0] <= b[1] <= a[1] or b[0] <= a[0] <= b[1] or b[0] <= a[1] <= b[1]
+
+
 def gen_string_results(dialogue, sentiments, mentions):
     dialogue['conv_str'] = [tokenizer.convert_ids_to_tokens(turn) for turn in dialogue['conv']]
 
@@ -143,6 +147,8 @@ def gen_string_results(dialogue, sentiments, mentions):
         senti_tid = senti['turn_id']
         mentn_st, mentn_ed = mentn['span']
         mentn_tid = mentn['turn_id']
+        if senti_tid == mentn_tid and span_overlap((senti_st, senti_ed), (mentn_st, mentn_ed)):
+            is_conflict = True
         for j in range(senti_st, senti_ed + 1):
             if is_occupy[senti_tid][j]:
                 is_conflict = True
